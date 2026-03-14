@@ -1,0 +1,14 @@
+{
+  "name": "Vartalap Bharat",
+  "short_name": "Vartalap",
+  "description": "Bharat's native messaging app designed for high performance and AI assistance.",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

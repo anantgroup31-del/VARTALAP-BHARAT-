@@ -1,0 +1,157 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "avatar": { "type": "string" },
+        "mobile": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "totalLeads": { "type": "number" },
+        "totalListings": { "type": "number" }
+      },
+      "required": ["id", "name", "mobile", "role"]
+    },
+    "VehicleListing": {
+      "title": "Vehicle Listing",
+      "description": "Vehicle available for booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "ownerPhoto": { "type": "string" },
+        "vehicleNumber": { "type": "string" },
+        "licenseNumber": { "type": "string" },
+        "licensePhoto": { "type": "string" },
+        "vehicleType": { "type": "string", "enum": ["Car", "Tempo", "Auto", "Bus", "Bike"] },
+        "vehiclePhoto": { "type": "string" },
+        "location": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["Available", "Busy"] },
+        "timestamp": { "type": "string" },
+        "uid": { "type": "string" }
+      },
+      "required": ["ownerName", "vehicleNumber", "vehicleType", "vehiclePhoto", "uid"]
+    },
+    "LocalService": {
+      "title": "Local Service",
+      "description": "Local business or service provider",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessName": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "photo": { "type": "string" },
+        "location": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "pending"] },
+        "timestamp": { "type": "string" },
+        "uid": { "type": "string" }
+      },
+      "required": ["businessName", "ownerName", "category", "uid"]
+    },
+    "BuilderListing": {
+      "title": "Builder Listing",
+      "description": "Property listing from a builder",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "builderLogo": { "type": "string" },
+        "builderName": { "type": "string" },
+        "buildingName": { "type": "string" },
+        "reraNumber": { "type": "string" },
+        "location": { "type": "string" },
+        "propertyType": { "type": "string" },
+        "photo": { "type": "string" },
+        "video": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "pending"] },
+        "timestamp": { "type": "string" },
+        "uid": { "type": "string" }
+      },
+      "required": ["builderName", "buildingName", "reraNumber", "uid"]
+    },
+    "OwnerListing": {
+      "title": "Owner Listing",
+      "description": "Property listing from an owner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "buildingName": { "type": "string" },
+        "location": { "type": "string" },
+        "propertyType": { "type": "string" },
+        "photo": { "type": "string" },
+        "video": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "uid": { "type": "string" }
+      },
+      "required": ["ownerName", "buildingName", "uid"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Customer lead for services or loans",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "userName": { "type": "string" },
+        "userMobile": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "uid": { "type": "string" }
+      },
+      "required": ["type", "userName", "userMobile", "uid"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Chat session between users or AI",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastMessageTime": { "type": "string" },
+        "unreadCount": { "type": "number" },
+        "isOnline": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["contact", "ai", "group"] },
+        "participants": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name", "type", "participants"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual message in a chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "sender": { "type": "string", "enum": ["me", "other", "ai"] },
+        "senderUid": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string", "enum": ["sent", "delivered", "read"] }
+      },
+      "required": ["id", "sender", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users": { "schema": "User", "description": "User profiles" },
+    "vehicles": { "schema": "VehicleListing", "description": "Vehicle listings" },
+    "services": { "schema": "LocalService", "description": "Local services" },
+    "builders": { "schema": "BuilderListing", "description": "Builder property projects" },
+    "owners": { "schema": "OwnerListing", "description": "Owner property listings" },
+    "leads": { "schema": "Lead", "description": "Business leads" },
+    "chats": { "schema": "Chat", "description": "Chat sessions" },
+    "chats/{chatId}/messages": { "schema": "Message", "description": "Messages within a chat" }
+  }
+}
