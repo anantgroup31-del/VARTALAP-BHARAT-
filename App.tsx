@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { 
-  VehicleListing, LocalService, BuilderListing, OwnerListing, Message, Chat, CallSession 
+  VehicleListing, LocalService, BuilderListing, OwnerListing, Message, Chat, CallSession, GroceryProduct 
 } from './types.ts';
 import { 
   LIST_OF_BANKS, LOCAL_SERVICE_CATEGORIES, CURRENT_USER, INITIAL_CHATS 
@@ -12,7 +12,7 @@ import {
   SearchIcon, BackIcon, ToolsIcon, LoanIcon, 
   HomeIcon, PersonIcon, VideoIcon, PhoneIcon,
   VartalapBharatLogo, SparkleIcon, CameraIcon, VehicleIcon, StarIcon, ChatIcon, PlusIcon, SendIcon, MapPinIcon,
-  MenuIcon, HeartIcon, ChevronRightIcon, MicIcon, StickerIcon
+  MenuIcon, HeartIcon, ChevronRightIcon, MicIcon, StickerIcon, ShoppingBagIcon
 } from './components/Icons.tsx';
 import { geminiService } from './services/gemini.ts';
 
@@ -65,7 +65,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
-type Tab = 'hub' | 'chat' | 'vehicle' | 'loan' | 'local' | 'property';
+type Tab = 'hub' | 'chat' | 'vehicle' | 'loan' | 'local' | 'property' | 'grocery';
 type View = 'user_app' | 'admin_login' | 'admin_console';
 type BookingStage = 'hub' | 'search' | 'location_picker' | 'ride_selection' | 'verification' | 'confirming' | 'tracking';
 
@@ -79,8 +79,8 @@ interface Lead {
 }
 
 const INITIAL_VEHICLES_MOCK: VehicleListing[] = [
-  { id: 'v1', ownerName: 'Om Prakash', ownerPhoto: '', vehicleNumber: 'MH-02-AB-1234', vehicleType: 'Car', vehiclePhoto: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400', location: 'Borivali, Mumbai', title: 'Luxury Car for Local Trip', description: 'Clean and well maintained car.', status: 'Available', timestamp: 'Active Now', licenseNumber: 'DL12345' },
-  { id: 'v2', ownerName: 'Rajesh Kumar', ownerPhoto: '', vehicleNumber: 'MH-04-XY-9988', vehicleType: 'Tempo', vehiclePhoto: 'https://images.unsplash.com/photo-1519003722824-194d4455a60c?w=400', location: 'Andheri, Mumbai', title: 'Heavy Duty Tempo for shifting', description: 'Reliable service for luggage.', status: 'Busy', timestamp: '2 mins ago', licenseNumber: 'DL99887' },
+  { id: 'v1', ownerName: 'Om Prakash', ownerPhoto: '', vehicleNumber: 'MH-02-AB-1234', vehicleType: 'Car', vehiclePhoto: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400', location: 'Borivali, Mumbai', title: 'Luxury Car for Local Trip', description: 'Clean and well maintained car.', status: 'active', availability: 'Available', timestamp: 'Active Now', licenseNumber: 'DL12345' },
+  { id: 'v2', ownerName: 'Rajesh Kumar', ownerPhoto: '', vehicleNumber: 'MH-04-XY-9988', vehicleType: 'Tempo', vehiclePhoto: 'https://images.unsplash.com/photo-1519003722824-194d4455a60c?w=400', location: 'Andheri, Mumbai', title: 'Heavy Duty Tempo for shifting', description: 'Reliable service for luggage.', status: 'active', availability: 'Busy', timestamp: '2 mins ago', licenseNumber: 'DL99887' },
 ];
 
 const INITIAL_BUILDERS_MOCK: BuilderListing[] = [
@@ -98,6 +98,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>('user_app');
   const [activeTab, setActiveTab] = useState<Tab>('hub');
   const [serviceSearch, setServiceSearch] = useState('');
+  const [grocerySearch, setGrocerySearch] = useState('');
   const [debouncedServiceSearch, setDebouncedServiceSearch] = useState('');
 
   useEffect(() => {
@@ -108,10 +109,20 @@ const App: React.FC = () => {
   }, [serviceSearch]);
   
   const [localServices, setLocalServices] = useState<LocalService[]>([]);
+  const [groceryProducts, setGroceryProducts] = useState<GroceryProduct[]>([]);
   const [builders, setBuilders] = useState<BuilderListing[]>([]);
   const [owners, setOwners] = useState<OwnerListing[]>([]);
   const [vehicles, setVehicles] = useState<VehicleListing[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'grocery_products'), where('status', '==', 'active'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GroceryProduct));
+      setGroceryProducts(products);
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'grocery_products'));
+    return () => unsubscribe();
+  }, []);
 
   const filteredLocalServices = React.useMemo(() => {
     return localServices.filter(s => 
@@ -177,47 +188,45 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (user.email === 'anantgroup31@gmail.com' && userData.role !== 'admin') {
-            await updateDoc(userDocRef, { role: 'admin', isOnline: true });
-            userData.role = 'admin';
+      try {
+        if (user) {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (user.email === 'anantgroup31@gmail.com' && userData.role !== 'admin') {
+              await updateDoc(userDocRef, { role: 'admin', isOnline: true });
+              userData.role = 'admin';
+            } else {
+              await updateDoc(userDocRef, { isOnline: true });
+            }
+            userData.isOnline = true;
+            setCurrentUser(userData);
           } else {
-            await updateDoc(userDocRef, { isOnline: true });
+            const newUser = {
+              id: user.uid,
+              name: user.displayName || 'User',
+              avatar: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
+              mobile: user.phoneNumber || '',
+              role: user.email === 'anantgroup31@gmail.com' ? 'admin' : 'user',
+              status: 'Jai Bharat!',
+              totalLeads: 0,
+              totalListings: 0,
+              isOnline: true
+            };
+            await setDoc(userDocRef, newUser);
+            setCurrentUser(newUser);
           }
-          userData.isOnline = true;
-          setCurrentUser(userData);
+          setIsLoggedIn(true);
         } else {
-          const newUser = {
-            id: user.uid,
-            name: user.displayName || 'User',
-            avatar: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
-            mobile: user.phoneNumber || '',
-            role: user.email === 'anantgroup31@gmail.com' ? 'admin' : 'user',
-            status: 'Jai Bharat!',
-            totalLeads: 0,
-            totalListings: 0,
-            isOnline: true
-          };
-          await setDoc(userDocRef, newUser);
-          setCurrentUser(newUser);
+          setIsLoggedIn(false);
+          setCurrentUser(null);
         }
-        setIsLoggedIn(true);
-
-        // Set offline on disconnect
-        const handleOffline = () => {
-          updateDoc(doc(db, 'users', user.uid), { isOnline: false });
-        };
-        window.addEventListener('beforeunload', handleOffline);
-        return () => window.removeEventListener('beforeunload', handleOffline);
-      } else {
-        setIsLoggedIn(false);
-        setCurrentUser(null);
+      } catch (error) {
+        console.error("Auth error:", error);
+      } finally {
+        setIsAuthReady(true);
       }
-      setIsAuthReady(true);
     });
 
     if ("geolocation" in navigator) {
@@ -230,6 +239,20 @@ const App: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const handleOffline = () => {
+      updateDoc(doc(db, 'users', currentUser.id), { isOnline: false });
+    };
+
+    window.addEventListener('beforeunload', handleOffline);
+    return () => {
+      handleOffline();
+      window.removeEventListener('beforeunload', handleOffline);
+    };
+  }, [currentUser?.id]);
+
   const handleStatusUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
     const file = e.target.files?.[0];
     if (!file || !currentUser) return;
@@ -240,17 +263,20 @@ const App: React.FC = () => {
       await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(storageRef);
 
-      await addDoc(collection(db, 'statuses'), {
+      const post = {
+        approvalType: 'Status',
         uid: currentUser.id,
         userName: currentUser.name,
         userAvatar: currentUser.avatar,
         type,
         url: downloadURL,
-        timestamp: serverTimestamp(),
+        status: 'pending',
+        timestamp: new Date().toLocaleString(),
         expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
-      });
-      
-      alert('Jai Bharat! Status uploaded successfully.');
+      };
+
+      await addDoc(collection(db, 'pending_approvals'), post);
+      alert('Jai Bharat! Aapka status approval ke liye Admin Console mein bhej diya gaya hai.');
     } catch (err) {
       console.error("Status Upload Error:", err);
       alert("Error uploading status. Please try again.");
@@ -262,19 +288,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthReady) return;
 
-    const unsubServices = onSnapshot(collection(db, 'services'), (snap) => {
+    const unsubServices = onSnapshot(query(collection(db, 'services'), where('status', '==', 'active')), (snap) => {
       setLocalServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as LocalService)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'services'));
 
-    const unsubBuilders = onSnapshot(collection(db, 'builders'), (snap) => {
+    const unsubBuilders = onSnapshot(query(collection(db, 'builders'), where('status', '==', 'active')), (snap) => {
       setBuilders(snap.docs.map(d => ({ id: d.id, ...d.data() } as BuilderListing)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'builders'));
 
-    const unsubOwners = onSnapshot(collection(db, 'owners'), (snap) => {
+    const unsubOwners = onSnapshot(query(collection(db, 'owners'), where('status', '==', 'active')), (snap) => {
       setOwners(snap.docs.map(d => ({ id: d.id, ...d.data() } as OwnerListing)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'owners'));
 
-    const unsubVehicles = onSnapshot(collection(db, 'vehicles'), (snap) => {
+    const unsubVehicles = onSnapshot(query(collection(db, 'vehicles'), where('status', '==', 'active')), (snap) => {
       setVehicles(snap.docs.map(d => ({ id: d.id, ...d.data() } as VehicleListing)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'vehicles'));
 
@@ -290,7 +316,7 @@ const App: React.FC = () => {
       setAllUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
 
-    const unsubStatuses = onSnapshot(collection(db, 'statuses'), (snap) => {
+    const unsubStatuses = onSnapshot(query(collection(db, 'statuses'), where('status', '==', 'active')), (snap) => {
       setAppStatuses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'statuses'));
 
@@ -674,7 +700,9 @@ const App: React.FC = () => {
         const collectionName = post.approvalType === 'Builders' ? 'builders' : 
                              post.approvalType === 'Owner' ? 'owners' :
                              post.approvalType === 'Service' ? 'services' :
-                             post.approvalType === 'Vehicle' ? 'vehicles' : null;
+                             post.approvalType === 'Vehicle' ? 'vehicles' : 
+                             post.approvalType === 'grocery' ? 'grocery_products' :
+                             post.approvalType === 'Status' ? 'statuses' : null;
         
         if (collectionName) {
           await addDoc(collection(db, collectionName), { ...post, status: 'active', timestamp: new Date().toLocaleString() });
@@ -736,12 +764,12 @@ const App: React.FC = () => {
 
   const renderBranding = (size: 'small' | 'large') => (
     <div className={`flex ${size === 'large' ? 'flex-col items-center' : 'items-center gap-2'}`}>
-      <VartalapBharatLogo className={size === 'large' ? 'w-32 h-32 mb-4' : 'w-7 h-7'} />
-      <div className={size === 'large' ? 'text-center' : 'flex flex-col'}>
-        <span className={`${size === 'large' ? 'text-4xl' : 'text-[9px]'} font-black tracking-tighter text-slate-900 uppercase`}>Vartalap</span>
-        <span className={`${size === 'large' ? 'text-4xl' : 'text-[9px]'} font-black tracking-tighter text-orange-500 uppercase`}>Bharat</span>
-        {size === 'large' && <p className="mt-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest leading-none">Digital India ka Digital Messenger</p>}
-      </div>
+      <VartalapBharatLogo className={size === 'large' ? 'w-40 h-40 mb-2' : 'w-10 h-10'} />
+      {size === 'large' && (
+        <div className="text-center">
+          <p className="mt-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest leading-none">Digital India ka Digital Messenger</p>
+        </div>
+      )}
     </div>
   );
 
@@ -754,38 +782,22 @@ const App: React.FC = () => {
       <form onSubmit={(e) => { e.preventDefault(); if(adminAuth.id==='admin@vartalap.in' && adminAuth.password==='Bharat@2025') setView('admin_console'); else alert('Sahi ID/Password dale!'); }} className="w-full max-sm space-y-4">
         <input required type="email" placeholder="Admin ID" className="w-full p-5 bg-slate-800 border border-slate-700 text-white rounded-3xl font-bold" onChange={e=>setAdminAuth({...adminAuth, id:e.target.value})} />
         <input required type="password" placeholder="Password" className="w-full p-5 bg-slate-800 border border-slate-700 text-white rounded-3xl font-bold" onChange={e=>setAdminAuth({...adminAuth, password:e.target.value})} />
-        <button type="submit" className="w-full bg-orange-500 text-white py-6 rounded-full font-black text-lg shadow-xl uppercase">Login Console</button>
+        <button type="submit" className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-6 rounded-full font-black text-lg shadow-xl uppercase active:scale-95 transition-all">Login Console</button>
         <button onClick={() => setView('user_app')} className="w-full text-slate-500 text-xs font-bold uppercase py-4">Back to App</button>
       </form>
     </div>
   );
 
-  if (!isAuthReady) return (
-    <div className="h-screen w-full flex items-center justify-center bg-slate-900">
-      <div className="flex flex-col items-center gap-4">
-        <VartalapBharatLogo className="w-20 h-20 text-white animate-pulse" />
-        <p className="text-white/50 text-[10px] font-black uppercase tracking-[0.2em]">Loading Bharat Hub...</p>
+  if (!isAuthReady) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-white font-black uppercase tracking-widest text-[10px]">Jai Bharat! Loading...</p>
+        </div>
       </div>
-    </div>
-  );
-
-  if (!isLoggedIn) return (
-    <div className="h-screen w-full bg-slate-900 flex flex-col items-center justify-center p-8 text-center">
-      <VartalapBharatLogo className="w-24 h-24 text-white mb-8" />
-      <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Jai Bharat!</h1>
-      <p className="text-white/60 text-sm mb-12 max-w-xs">Welcome to the Unified Bharat Hub. Please login to access vehicles, properties, and local services.</p>
-      
-      <button 
-        onClick={loginWithGoogle}
-        className="w-full max-w-sm bg-white text-slate-900 py-4 rounded-[2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-2xl active:scale-95 transition-all"
-      >
-        <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="" />
-        Login with Google
-      </button>
-      
-      <p className="mt-8 text-[8px] font-black text-white/30 uppercase tracking-[0.3em]">Powered by Vartalap AI</p>
-    </div>
-  );
+    );
+  }
 
   if (view === 'admin_console') return (
     <div className="h-screen w-full bg-slate-50 flex flex-col overflow-hidden">
@@ -806,7 +818,7 @@ const App: React.FC = () => {
             {pendingApprovals.map(p => (
               <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex justify-between items-start mb-4">
-                  <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[8px] font-black uppercase">{p.approvalType}</span>
+                  <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded text-[8px] font-black uppercase">{p.approvalType}</span>
                   <span className="text-[8px] font-bold text-slate-400 uppercase">{p.timestamp}</span>
                 </div>
                 <h4 className="font-bold text-lg leading-tight mb-2">{p.buildingName || p.businessName || p.vehicleNumber || p.title}</h4>
@@ -839,10 +851,16 @@ const App: React.FC = () => {
                       <img src={p.licensePhoto} className="w-full h-20 object-cover rounded-xl bg-slate-50" alt="" loading="lazy" referrerPolicy="no-referrer" />
                     </div>
                   )}
-                  {(p.photo || p.vehiclePhoto) && (
+                  {(p.photo || p.vehiclePhoto || p.url) && (
                     <div className="space-y-1">
-                      <p className="text-[8px] font-black text-slate-400 uppercase">Main Photo</p>
-                      <img src={p.photo || p.vehiclePhoto} className="w-full h-20 object-cover rounded-xl bg-slate-50" alt="" loading="lazy" referrerPolicy="no-referrer" />
+                      <p className="text-[8px] font-black text-slate-400 uppercase">Main Media</p>
+                      {p.approvalType === 'Status' && p.type === 'video' ? (
+                        <div className="w-full h-20 bg-slate-900 rounded-xl flex items-center justify-center">
+                          <VideoIcon className="w-6 h-6 text-white/50" />
+                        </div>
+                      ) : (
+                        <img src={p.photo || p.vehiclePhoto || p.url} className="w-full h-20 object-cover rounded-xl bg-slate-50" alt="" loading="lazy" referrerPolicy="no-referrer" />
+                      )}
                     </div>
                   )}
                 </div>
@@ -851,9 +869,9 @@ const App: React.FC = () => {
                   <p className="text-xs text-slate-600 mb-4 line-clamp-2">{p.description}</p>
                 )}
 
-                <div className="flex gap-2">
-                  <button onClick={() => handleAdminAction(p, true)} className="flex-1 bg-[#138808] text-white py-3 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-green-100">Approve Live</button>
-                  <button onClick={() => handleAdminAction(p, false)} className="flex-1 bg-red-500 text-white py-3 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-red-100">Reject</button>
+                <div className="flex gap-3 mt-4">
+                  <button onClick={() => handleAdminAction(p, true)} className="flex-1 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-[#138808] py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-[#138808] hover:text-white transition-all active:scale-95">Approve Live</button>
+                  <button onClick={() => handleAdminAction(p, false)} className="flex-1 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-500 py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-red-500 hover:text-white transition-all active:scale-95">Reject</button>
                 </div>
               </div>
             ))}
@@ -866,7 +884,7 @@ const App: React.FC = () => {
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl">
             <div className="space-y-6">
               <div>
-                <h4 className="text-orange-500 font-black uppercase text-xs mb-2 tracking-widest">Step 1: App Deploy Karein</h4>
+                <h4 className="text-red-600 font-black uppercase text-xs mb-2 tracking-widest">Step 1: App Deploy Karein</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   AI Studio ke top-right corner mein <span className="text-white font-bold">"Share"</span> button par click karein ya Settings menu se <span className="text-white font-bold">"Deploy to Cloud Run"</span> select karein. Isse aapka app internet par live ho jayega.
                 </p>
@@ -875,27 +893,27 @@ const App: React.FC = () => {
               <div className="h-px bg-white/10"></div>
 
               <div>
-                <h4 className="text-orange-500 font-black uppercase text-xs mb-2 tracking-widest">Step 2: Domain Connect Karein</h4>
+                <h4 className="text-red-600 font-black uppercase text-xs mb-2 tracking-widest">Step 2: Domain Connect Karein</h4>
                 <p className="text-xs text-slate-400 leading-relaxed mb-4">
                   Google Cloud Console mein jaakar apne Cloud Run service ki settings mein <span className="text-white font-bold">"Manage Custom Domains"</span> par click karein.
                 </p>
                 <div className="grid grid-cols-1 gap-3">
                   <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
                     <p className="text-[8px] font-black uppercase text-slate-500 mb-1">TXT Record</p>
-                    <p className="text-[10px] font-mono text-blue-400">google-site-verification=...</p>
+                    <p className="text-[10px] font-mono text-red-400">google-site-verification=...</p>
                     <p className="text-[8px] text-slate-500 mt-1 uppercase">Domain verify karne ke liye</p>
                   </div>
                   <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
                     <p className="text-[8px] font-black uppercase text-slate-500 mb-1">A Record (IP)</p>
-                    <p className="text-[10px] font-mono text-blue-400">216.239.32.21</p>
+                    <p className="text-[10px] font-mono text-red-400">216.239.32.21</p>
                     <p className="text-[8px] text-slate-500 mt-1 uppercase">Domain ko server se jodne ke liye</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-orange-500/10 p-4 rounded-2xl border border-orange-500/20">
-                <p className="text-[10px] font-black text-orange-500 uppercase mb-1">Pro Tip</p>
-                <p className="text-[10px] text-orange-200/70 leading-relaxed">
+              <div className="bg-red-600/10 p-4 rounded-2xl border border-red-600/20">
+                <p className="text-[10px] font-black text-red-600 uppercase mb-1">Pro Tip</p>
+                <p className="text-[10px] text-red-200/70 leading-relaxed">
                   Agar aap chahte hain ki sabhi users ka data ek saath dikhe, toh <span className="text-white font-bold">Firebase Database</span> setup karna zaroori hai. Abhi data sirf local storage mein save ho raha hai.
                 </p>
               </div>
@@ -906,36 +924,12 @@ const App: React.FC = () => {
     </div>
   );
 
-  if (!isLoggedIn) return (
-    <div className="h-screen w-full bg-white flex flex-col p-10 justify-center animate-smart">
-      <div className="mb-16">{renderBranding('large')}</div>
-      <form onSubmit={(e) => { e.preventDefault(); setIsLoggedIn(true); }} className="space-y-6">
-        <input type="tel" placeholder="Mobile Number" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none" required />
-        <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-full font-black text-xl shadow-2xl uppercase">Enter Vartalap</button>
-      </form>
-      <div className="mt-12 pt-8 flex flex-col items-center">
-        <button onClick={() => setView('admin_login')} className="bg-slate-50 text-slate-400 px-6 py-3 rounded-2xl text-[10px] font-black uppercase">Admin Console Login</button>
-      </div>
-    </div>
-  );
-
-  if (!isAuthReady) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-900">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-white font-black uppercase tracking-widest text-[10px]">Jai Bharat! Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (!isLoggedIn) {
     return (
       <div className="h-screen w-full bg-slate-900 flex flex-col items-center justify-center p-8 relative overflow-hidden">
         {/* Background Decorations */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-green-600/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
         
         <div className="relative z-10 w-full max-w-md text-center">
           <div className="mb-12 animate-bounce">
@@ -951,7 +945,7 @@ const App: React.FC = () => {
             
             <button 
               onClick={loginWithGoogle}
-              className="w-full bg-white text-slate-900 py-6 rounded-full font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4"
+              className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-6 rounded-full font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4"
             >
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/0/google.svg" className="w-5 h-5" alt="Google" />
               Login with Google
@@ -977,10 +971,6 @@ const App: React.FC = () => {
       <div className="safe-top bg-white border-b border-slate-100 z-30 shrink-0 shadow-sm">
         <div className="px-6 py-1 flex items-center justify-between h-[45px]">
           {renderBranding('small')}
-          <div className="flex gap-4">
-            <button className="text-slate-600 hover:text-slate-900"><CameraIcon className="w-5 h-5"/></button>
-            <button className="text-slate-600 hover:text-slate-900"><StarIcon className="w-5 h-5"/></button>
-          </div>
         </div>
       </div>
 
@@ -997,8 +987,8 @@ const App: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Listing Type</label>
                   <div className="grid grid-cols-2 gap-4">
-                    <button type="button" onClick={() => setPropertyTypeSelection('builders')} className={`p-4 rounded-3xl font-black text-[10px] uppercase border-2 transition-all ${propertyTypeSelection === 'builders' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-400 border-slate-100'}`}>Builder Project</button>
-                    <button type="button" onClick={() => setPropertyTypeSelection('owner')} className={`p-4 rounded-3xl font-black text-[10px] uppercase border-2 transition-all ${propertyTypeSelection === 'owner' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-400 border-slate-100'}`}>Owner Listing</button>
+                    <button type="button" onClick={() => setPropertyTypeSelection('builders')} className={`p-4 rounded-3xl font-black text-[10px] uppercase border-2 transition-all ${propertyTypeSelection === 'builders' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-400 border-slate-100'}`}>Builder Project</button>
+                    <button type="button" onClick={() => setPropertyTypeSelection('owner')} className={`p-4 rounded-3xl font-black text-[10px] uppercase border-2 transition-all ${propertyTypeSelection === 'owner' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-400 border-slate-100'}`}>Owner Listing</button>
                   </div>
                 </div>
               )}
@@ -1069,6 +1059,25 @@ const App: React.FC = () => {
                 </div>
               )}
 
+              {activeTab === 'grocery' && (
+                <>
+                  <input name="productName" required placeholder="Product Name (e.g. Fresh Tomatoes)" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <input name="price" required placeholder="Price (e.g. ₹40)" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
+                    <input name="unit" required placeholder="Unit (e.g. per kg)" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
+                  </div>
+                  <input name="category" required placeholder="Category (Vegetables, Fruits, Dairy...)" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
+                  <input name="sellerName" required placeholder="Shop/Seller Name" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Google Location (GPS)</label>
+                    <div className="relative">
+                      <input name="location" id="grocery-gps-input" required placeholder="Connect GPS" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm pr-12" />
+                      <button type="button" onClick={() => handleConnectGps('grocery-gps-input')} className="absolute right-4 top-4 text-red-600 animate-pulse"><SparkleIcon className="w-5 h-5"/></button>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {activeTab === 'local' && (
                 <>
                   <input name="businessName" required placeholder="Business Name" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
@@ -1082,7 +1091,7 @@ const App: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Google Location (GPS)</label>
                   <div className="relative">
                     <input name="location" id="listing-gps-input" required placeholder="Connect GPS" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm pr-12" />
-                    <button type="button" onClick={() => handleConnectGps('listing-gps-input')} className="absolute right-4 top-4 text-orange-500 animate-pulse"><SparkleIcon className="w-5 h-5"/></button>
+                    <button type="button" onClick={() => handleConnectGps('listing-gps-input')} className="absolute right-4 top-4 text-red-600 animate-pulse"><SparkleIcon className="w-5 h-5"/></button>
                   </div>
                 </div>
               )}
@@ -1098,7 +1107,7 @@ const App: React.FC = () => {
                   </div>
                   {activeTab !== 'vehicle' && (
                     <div onClick={() => videoInputRef.current?.click()} className="w-full h-32 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center cursor-pointer overflow-hidden">
-                      {selectedVideo ? <div className="text-blue-500 font-bold text-[10px]">Video Selected</div> : <div className="text-center"><VideoIcon className="w-8 h-8 mx-auto text-slate-300" /><span className="text-[8px] font-bold text-slate-400 uppercase mt-1">Video</span></div>}
+                      {selectedVideo ? <div className="text-red-600 font-bold text-[10px]">Video Selected</div> : <div className="text-center"><VideoIcon className="w-8 h-8 mx-auto text-slate-300" /><span className="text-[8px] font-bold text-slate-400 uppercase mt-1">Video</span></div>}
                       <input type="file" ref={videoInputRef} className="hidden" onChange={(e) => handleFileChange(e, 'video')} accept="video/*" />
                     </div>
                   )}
@@ -1112,7 +1121,7 @@ const App: React.FC = () => {
                 </>
               )}
 
-              <button type="submit" className="w-full bg-orange-500 text-white py-5 rounded-full font-black uppercase shadow-xl">Submit for Approval</button>
+              <button type="submit" className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-5 rounded-full font-black uppercase shadow-xl active:scale-95 transition-all">Submit for Approval</button>
             </form>
           </div>
         ) : activeTab === 'chat' ? (
@@ -1133,7 +1142,7 @@ const App: React.FC = () => {
                           <img src={callSession.chat.avatar} className="w-full h-full object-cover" alt="" />
                         </div>
                         <h2 className="text-3xl font-black uppercase tracking-tight">{callSession.chat.name}</h2>
-                        <p className="text-orange-500 font-bold uppercase tracking-[0.2em] mt-2 animate-pulse">
+                        <p className="text-red-600 font-bold uppercase tracking-[0.2em] mt-2 animate-pulse">
                           {callSession.status === 'ringing' ? 'Ringing...' : 'Connected'}
                         </p>
                       </div>
@@ -1183,18 +1192,18 @@ const App: React.FC = () => {
                       <div className={`w-full h-full ${
                         chatTheme === 'default' ? 'bg-slate-50' : 
                         chatTheme === 'dark' ? 'bg-slate-900' : 
-                        chatTheme === 'nature' ? 'bg-emerald-500' : 'bg-orange-500'
+                        chatTheme === 'nature' ? 'bg-green-600' : 'bg-red-600'
                       }`}></div>
                     </button>
-                    <button onClick={() => handleStartCall('voice')} className="text-slate-400 hover:text-orange-500 transition-colors"><PhoneIcon className="w-5 h-5"/></button>
-                    <button onClick={() => handleStartCall('video')} className="text-slate-400 hover:text-orange-500 transition-colors"><VideoIcon className="w-5 h-5"/></button>
+                    <button onClick={() => handleStartCall('voice')} className="text-slate-400 hover:text-red-600 transition-colors"><PhoneIcon className="w-5 h-5"/></button>
+                    <button onClick={() => handleStartCall('video')} className="text-slate-400 hover:text-red-600 transition-colors"><VideoIcon className="w-5 h-5"/></button>
                   </div>
                 </div>
                 
                 <div className={`flex-1 overflow-y-auto p-4 space-y-4 transition-all duration-500 ${
                   chatTheme === 'default' ? 'chat-bg-pattern' : 
                   chatTheme === 'dark' ? 'bg-slate-950' : 
-                  chatTheme === 'nature' ? 'bg-emerald-50' : 'bg-orange-50'
+                  chatTheme === 'nature' ? 'bg-green-50' : 'bg-red-50'
                 }`}>
                   {(messages[activeChat.id] || []).map((msg) => (
                     <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
@@ -1211,11 +1220,11 @@ const App: React.FC = () => {
                         )}
                         {msg.media?.type === 'voice' && (
                           <div className="flex items-center gap-3 p-2 bg-white/50 rounded-2xl border border-slate-200 mb-2">
-                            <button className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center">
+                            <button className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center">
                               <div className="w-0 h-0 border-t-[5px] border-t-transparent border-l-[8px] border-l-white border-b-[5px] border-b-transparent ml-1"></div>
                             </button>
                             <div className="flex-1 h-1 bg-slate-200 rounded-full relative">
-                              <div className="absolute inset-y-0 left-0 w-1/3 bg-orange-500 rounded-full"></div>
+                              <div className="absolute inset-y-0 left-0 w-1/3 bg-red-600 rounded-full"></div>
                             </div>
                             <span className="text-[8px] font-bold text-slate-400">{msg.media.duration || '0:00'}</span>
                           </div>
@@ -1230,12 +1239,12 @@ const App: React.FC = () => {
                             rel="noopener noreferrer"
                             className="flex items-center gap-3 p-3 bg-white/50 rounded-2xl border border-slate-200 mb-2 hover:bg-white transition-colors"
                           >
-                            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-500">
+                            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
                               <MapPinIcon className="w-5 h-5" />
                             </div>
                             <div className="flex-1">
                               <p className="text-[10px] font-black uppercase tracking-tight text-slate-900">{msg.media.label || 'Shared Location'}</p>
-                              <p className="text-[8px] font-bold text-orange-500 uppercase tracking-widest">Open in Google Maps</p>
+                              <p className="text-[8px] font-bold text-red-600 uppercase tracking-widest">Open in Google Maps</p>
                             </div>
                           </a>
                         )}
@@ -1253,7 +1262,7 @@ const App: React.FC = () => {
                         <div className="flex items-center justify-between mt-2">
                           <button 
                             onClick={() => handleTranslate(msg.id, msg.text || '')}
-                            className="text-[8px] font-black uppercase text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-[8px] font-black uppercase text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             Translate
                           </button>
@@ -1305,21 +1314,21 @@ const App: React.FC = () => {
                     <div className="flex gap-2">
                       <button 
                         onClick={() => setShowStickers(!showStickers)}
-                        className={`p-3 rounded-2xl transition-colors ${showStickers ? 'bg-orange-500 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                        className={`p-3 rounded-2xl transition-colors ${showStickers ? 'bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-600 shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                         title="Stickers"
                       >
                         <StickerIcon className="w-5 h-5"/>
                       </button>
                       <button 
                         onClick={handleGenerateImage}
-                        className="p-3 bg-orange-50 rounded-2xl text-orange-500 hover:bg-orange-100 transition-colors"
+                        className="p-3 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-600 rounded-2xl hover:bg-slate-50 transition-colors shadow-md"
                         title="AI Image"
                       >
                         <SparkleIcon className="w-5 h-5"/>
                       </button>
                       <button 
                         onClick={() => chatImageInputRef.current?.click()}
-                        className="p-3 bg-blue-50 rounded-2xl text-blue-500 hover:bg-blue-100 transition-colors"
+                        className="p-3 bg-red-50 rounded-2xl text-red-600 hover:bg-red-100 transition-colors"
                         title="Photo"
                       >
                         <CameraIcon className="w-5 h-5"/>
@@ -1347,14 +1356,14 @@ const App: React.FC = () => {
                     {inputText.trim() ? (
                       <button 
                         onClick={handleSendMessage}
-                        className="p-4 bg-orange-500 text-white rounded-2xl shadow-lg shadow-orange-100 active:scale-90 transition-transform"
+                        className="p-4 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-600 rounded-2xl shadow-lg shadow-red-100 active:scale-90 transition-transform"
                       >
                         <SendIcon className="w-5 h-5"/>
                       </button>
                     ) : (
                       <button 
                         onClick={handleSendVoice}
-                        className={`p-4 rounded-2xl shadow-lg active:scale-90 transition-all ${isRecording ? 'bg-red-500 text-white shadow-red-100' : 'bg-slate-900 text-white shadow-slate-100'}`}
+                        className={`p-4 rounded-2xl shadow-lg active:scale-90 transition-all ${isRecording ? 'bg-red-500 text-white shadow-red-100' : 'bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 shadow-slate-100'}`}
                       >
                         <MicIcon className={`w-5 h-5 ${isRecording ? 'animate-pulse' : ''}`}/>
                       </button>
@@ -1366,7 +1375,7 @@ const App: React.FC = () => {
               <div className="bg-white min-h-full">
                 <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50">
                   <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Vartalap</h2>
-                  <button className="text-slate-400"><SearchIcon className="w-5 h-5"/></button>
+                  <button className="w-12 h-12 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 rounded-2xl flex items-center justify-center shadow-md active:scale-90 transition-all"><SearchIcon className="w-5 h-5"/></button>
                 </div>
 
                 {/* Status Bar */}
@@ -1381,7 +1390,7 @@ const App: React.FC = () => {
                         className={`w-14 h-14 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center relative cursor-pointer hover:bg-slate-50 transition-colors ${isUploadingStatus ? 'animate-pulse' : ''}`}
                       >
                         <img src={currentUser?.avatar || 'https://i.pravatar.cc/150?u=me'} className="w-12 h-12 rounded-full object-cover" alt="" />
-                        <div className="absolute bottom-0 right-0 w-5 h-5 bg-orange-500 rounded-full border-2 border-white flex items-center justify-center text-white">
+                        <div className="absolute bottom-0 right-0 w-5 h-5 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-white">
                           <PlusIcon className="w-3 h-3" />
                         </div>
                         <input type="file" ref={statusPhotoInputRef} className="hidden" onChange={(e) => handleStatusUpload(e, 'image')} accept="image/*" />
@@ -1393,7 +1402,7 @@ const App: React.FC = () => {
                   {/* Real Statuses */}
                   {appStatuses.map(status => (
                     <div key={status.id} className="flex flex-col items-center gap-2 shrink-0">
-                      <div className="w-14 h-14 rounded-full p-0.5 border-2 border-orange-500 cursor-pointer active:scale-95 transition-transform">
+                      <div className="w-14 h-14 rounded-full p-0.5 border-t-2 border-t-red-600 border-b-2 border-b-green-600 cursor-pointer active:scale-95 transition-transform">
                         <img src={status.userAvatar} className="w-full h-full rounded-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
                       </div>
                       <span className="text-[9px] font-black uppercase text-slate-900 truncate w-14 text-center">{status.userName.split(' ')[0]}</span>
@@ -1403,7 +1412,7 @@ const App: React.FC = () => {
                   {/* Placeholder chats statuses if no real statuses */}
                   {appStatuses.length === 0 && chats.map(chat => (
                     <div key={`status-${chat.id}`} className="flex flex-col items-center gap-2 shrink-0">
-                      <div className="w-14 h-14 rounded-full p-0.5 border-2 border-orange-500">
+                      <div className="w-14 h-14 rounded-full p-0.5 border-t-2 border-t-red-600 border-b-2 border-b-green-600">
                         <img src={chat.avatar} className="w-full h-full rounded-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
                       </div>
                       <span className="text-[9px] font-black uppercase text-slate-900 truncate w-14 text-center">{chat.name.split(' ')[0]}</span>
@@ -1432,7 +1441,7 @@ const App: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-slate-500 truncate pr-4">{chat.lastMessage}</p>
                           {chat.unreadCount > 0 && (
-                            <div className="shrink-0 min-w-[18px] h-[18px] bg-orange-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1">
+                            <div className="shrink-0 min-w-[18px] h-[18px] bg-red-600 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1">
                               {chat.unreadCount}
                             </div>
                           )}
@@ -1448,48 +1457,50 @@ const App: React.FC = () => {
           <div className="p-6">
             {!showLoanApply && !showLoanDocs && !showCibilCheck ? (
               <div className="space-y-8 animate-smart">
-                <div className="p-10 text-center bg-white rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-[5rem] -mr-16 -mt-16 group-hover:bg-orange-100 transition-colors"></div>
-                  <div className="w-20 h-20 bg-orange-500 text-white rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-orange-100 relative z-10">
-                    <LoanIcon className="w-10 h-10" />
+                <div className="p-10 text-center bg-white rounded-[3.5rem] border border-slate-100 shadow-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-red-50 rounded-bl-[6rem] -mr-20 -mt-20 group-hover:bg-red-100 transition-colors"></div>
+                  <div className="w-24 h-24 bg-red-600 text-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-red-200 relative z-10 animate-pulse">
+                    <LoanIcon className="w-12 h-12" />
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">Bharat Loan Hub</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-3">SABSE TEZ LOAN APPROVAL</p>
-                  <button onClick={() => setShowLoanApply(true)} className="mt-10 w-full bg-slate-900 text-white py-6 rounded-full font-black uppercase text-sm tracking-widest shadow-2xl active:translate-y-1 transition-all">Apply Loan Now</button>
+                  <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Bharat Loan Hub</h2>
+                  <p className="text-[11px] font-black text-red-600 uppercase tracking-[0.2em] mt-4">SABSE TEZ LOAN APPROVAL</p>
+                  <button onClick={() => setShowLoanApply(true)} className="mt-12 w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-7 rounded-full font-black uppercase text-sm tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all">Apply Loan Now</button>
                 </div>
-                <button onClick={() => setShowCibilCheck(true)} className="w-full bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center gap-3 active:scale-95 transition-all">
-                  <div className="w-12 h-12 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center"><StarIcon className="w-6 h-6"/></div>
-                  <span className="text-[10px] font-black uppercase text-slate-600 text-center">CIBIL Score Check</span>
-                </button>
-                <button onClick={() => setShowLoanDocs(true)} className="w-full bg-orange-50 p-6 rounded-[2rem] border border-orange-100 flex items-center justify-between group shadow-sm">
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center"><ToolsIcon className="w-5 h-5"/></div>
-                    <div>
-                      <h4 className="font-black text-sm uppercase text-orange-900">Required Documents</h4>
-                      <p className="text-[9px] font-bold text-orange-600 uppercase">Check what you need</p>
-                    </div>
-                  </div>
-                  <PlusIcon className="w-4 h-4 text-orange-500"/>
-                </button>
-                <button onClick={() => setShowLoanStatus(true)} className="w-full bg-blue-50 p-6 rounded-[2rem] border border-blue-100 flex items-center justify-between group shadow-sm">
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="w-10 h-10 bg-blue-500 text-white rounded-xl flex items-center justify-center">
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <button onClick={() => setShowCibilCheck(true)} className="bg-white p-8 rounded-[3rem] border-t-4 border-t-red-600 border-b-4 border-b-green-600 shadow-sm flex flex-col items-center gap-4 active:scale-95 transition-all hover:shadow-md group">
+                    <div className="w-14 h-14 bg-red-50 text-red-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all shadow-inner"><StarIcon className="w-7 h-7"/></div>
+                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-widest text-center">CIBIL Score</span>
+                  </button>
+                  <button onClick={() => setShowLoanDocs(true)} className="bg-white p-8 rounded-[3rem] border-t-4 border-t-red-600 border-b-4 border-b-green-600 shadow-sm flex flex-col items-center gap-4 active:scale-95 transition-all hover:shadow-md group">
+                    <div className="w-14 h-14 bg-red-50 text-red-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all shadow-inner"><ToolsIcon className="w-7 h-7"/></div>
+                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-widest text-center">Documents</span>
+                  </button>
+                </div>
+
+                <button onClick={() => setShowLoanStatus(true)} className="w-full bg-white p-6 rounded-[2.5rem] border-t-2 border-t-red-600 border-b-2 border-b-green-600 flex items-center justify-between group shadow-sm hover:shadow-md transition-all">
+                  <div className="flex items-center gap-5 text-left">
+                    <div className="w-14 h-14 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-red-100">
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                     </div>
                     <div>
-                      <h4 className="font-black text-sm uppercase text-blue-900">Track Application</h4>
-                      <p className="text-[9px] font-bold text-blue-600 uppercase">Check Approval Status</p>
+                      <h4 className="font-black text-sm uppercase text-slate-900 tracking-tight">Track Application</h4>
+                      <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest">Check Approval Status</p>
                     </div>
                   </div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+                  <div className="w-3 h-3 bg-red-600 rounded-full animate-ping mr-4"></div>
                 </button>
-                <div className="grid grid-cols-2 gap-3">
-                  {LIST_OF_BANKS.slice(0, 20).map(bank => (
-                    <div key={bank} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm">
-                      <div className="w-8 h-8 bg-slate-50 rounded-xl flex items-center justify-center font-black text-[10px] text-slate-400">{bank.charAt(0)}</div>
-                      <span className="text-[9px] font-bold text-slate-800 uppercase truncate">{bank}</span>
-                    </div>
-                  ))}
+
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] px-4">Partner Banks</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {LIST_OF_BANKS.slice(0, 20).map(bank => (
+                      <button key={bank} className="bg-white p-5 rounded-[2.5rem] border-t-2 border-t-red-600 border-b-2 border-b-green-600 flex items-center gap-4 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all group">
+                        <div className="w-12 h-12 bg-slate-50 text-red-600 rounded-2xl flex items-center justify-center font-black text-sm group-hover:bg-red-600 group-hover:text-white transition-colors shadow-inner">{bank.charAt(0)}</div>
+                        <span className="text-[10px] font-black text-slate-900 uppercase truncate tracking-tighter">{bank}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : showLoanApply ? (
@@ -1498,29 +1509,29 @@ const App: React.FC = () => {
                   <button onClick={() => setShowLoanApply(false)} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100"><BackIcon className="w-5 h-5"/></button>
                   <h2 className="text-2xl font-black uppercase tracking-tight">Loan Apply Now</h2>
                 </div>
-                <form onSubmit={handleLoanSubmit} className="space-y-5">
-                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Select Bank (20 Banks Available)</label>
-                    <select name="bankName" required className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm">
+                <form onSubmit={handleLoanSubmit} className="space-y-6">
+                   <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Select Bank (20 Banks Available)</label>
+                    <select name="bankName" required className="w-full p-5 bg-white border border-slate-100 rounded-[2rem] font-bold shadow-sm focus:ring-2 focus:ring-red-100 focus:border-red-600 transition-all outline-none">
                       {LIST_OF_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <input name="aadhaar" required placeholder="Aadhaar" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
-                    <input name="pan" required placeholder="PAN" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm uppercase" />
+                    <input name="aadhaar" required placeholder="Aadhaar" className="w-full p-5 bg-white border border-slate-100 rounded-[2rem] font-bold shadow-sm focus:ring-2 focus:ring-red-100 focus:border-red-600 transition-all outline-none" />
+                    <input name="pan" required placeholder="PAN" className="w-full p-5 bg-white border border-slate-100 rounded-[2rem] font-bold shadow-sm uppercase focus:ring-2 focus:ring-red-100 focus:border-red-600 transition-all outline-none" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <input name="mobile" required type="tel" placeholder="Mobile Number" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
-                    <input name="monthlyIncome" required type="number" placeholder="Monthly Income" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
+                    <input name="mobile" required type="tel" placeholder="Mobile Number" className="w-full p-5 bg-white border border-slate-100 rounded-[2rem] font-bold shadow-sm focus:ring-2 focus:ring-red-100 focus:border-red-600 transition-all outline-none" />
+                    <input name="monthlyIncome" required type="number" placeholder="Monthly Income" className="w-full p-5 bg-white border border-slate-100 rounded-[2rem] font-bold shadow-sm focus:ring-2 focus:ring-red-100 focus:border-red-600 transition-all outline-none" />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Google Location (GPS)</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Google Location (GPS)</label>
                     <div className="relative">
-                      <input name="location" id="loan-gps-input" required placeholder="Connect GPS" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm pr-12" />
-                      <button type="button" onClick={() => handleConnectGps('loan-gps-input')} className="absolute right-4 top-4 text-orange-500 animate-pulse"><SparkleIcon className="w-5 h-5"/></button>
+                      <input name="location" id="loan-gps-input" required placeholder="Connect GPS" className="w-full p-5 bg-white border border-slate-100 rounded-[2rem] font-bold shadow-sm pr-16 focus:ring-2 focus:ring-red-100 focus:border-red-600 transition-all outline-none" />
+                      <button type="button" onClick={() => handleConnectGps('loan-gps-input')} className="absolute right-4 top-3 w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center animate-pulse"><SparkleIcon className="w-5 h-5"/></button>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-orange-500 text-white py-6 rounded-full font-black uppercase shadow-2xl active:translate-y-1 transition-all">Apply Now</button>
+                  <button type="submit" className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-7 rounded-full font-black uppercase text-sm tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all">Apply Now</button>
                 </form>
               </div>
             ) : showLoanDocs ? (
@@ -1531,19 +1542,22 @@ const App: React.FC = () => {
                 </div>
                 <div className="space-y-4">
                   {[
-                    { title: 'Aadhaar Card', desc: 'Identity & Address Proof' },
-                    { title: 'PAN Card', desc: 'Mandatory for Financials' },
-                    { title: 'Bank Statement', desc: 'Last 6 Months' },
-                    { title: 'Salary Slips', desc: 'Last 3 Months (For Salaried)' },
-                    { title: 'ITR / Form 16', desc: 'Income Proof' }
+                    { title: 'Aadhaar Card', desc: 'Identity & Address Proof', icon: '🆔' },
+                    { title: 'PAN Card', desc: 'Mandatory for Financials', icon: '💳' },
+                    { title: 'Bank Statement', desc: 'Last 6 Months', icon: '📊' },
+                    { title: 'Salary Slips', desc: 'Last 3 Months (For Salaried)', icon: '📝' },
+                    { title: 'ITR / Form 16', desc: 'Income Proof', icon: '📄' }
                   ].map(doc => (
-                    <div key={doc.title} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
-                      <div>
-                        <h4 className="font-black text-sm uppercase text-slate-900">{doc.title}</h4>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{doc.desc}</p>
+                    <div key={doc.title} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-red-200 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-xl shadow-inner">{doc.icon}</div>
+                        <div>
+                          <h4 className="font-black text-sm uppercase text-slate-900">{doc.title}</h4>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{doc.desc}</p>
+                        </div>
                       </div>
-                      <div className="w-8 h-8 bg-green-50 text-green-500 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      <div className="w-10 h-10 bg-green-50 text-green-500 rounded-full flex items-center justify-center shadow-inner">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
                       </div>
                     </div>
                   ))}
@@ -1555,20 +1569,27 @@ const App: React.FC = () => {
                   <button onClick={() => setShowCibilCheck(false)} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100"><BackIcon className="w-5 h-5"/></button>
                   <h2 className="text-2xl font-black uppercase tracking-tight">CIBIL Check</h2>
                 </div>
-                <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm text-center">
-                  <div className="relative w-48 h-48 mx-auto mb-8">
-                    <svg className="w-full h-full" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="45" fill="none" stroke="#f1f5f9" strokeWidth="10" />
-                      <circle cx="50" cy="50" r="45" fill="none" stroke="#138808" strokeWidth="10" strokeDasharray="210 282" strokeLinecap="round" transform="rotate(135 50 50)" />
+                <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-2xl text-center relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-600 to-green-600"></div>
+                  <div className="relative w-64 h-64 mx-auto mb-10">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                      <defs>
+                        <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#dc2626" />
+                          <stop offset="100%" stopColor="#16a34a" />
+                        </linearGradient>
+                      </defs>
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="#f0fdf4" strokeWidth="12" />
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="url(#scoreGradient)" strokeWidth="12" strokeDasharray="210 264" strokeLinecap="round" className="animate-dash" />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-4xl font-black text-slate-900">785</span>
-                      <span className="text-[10px] font-black text-green-600 uppercase">Excellent</span>
+                      <span className="text-6xl font-black text-slate-900 tracking-tighter">785</span>
+                      <div className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-green-600 text-white text-[10px] font-black uppercase rounded-full mt-3 shadow-lg shadow-red-200">Excellent</div>
                     </div>
                   </div>
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Jai Bharat!</h3>
-                  <p className="text-sm font-bold text-slate-400 mt-2">Aapka CIBIL score bahut accha hai. Aapko turant loan mil sakta hai.</p>
-                  <button onClick={() => { setShowCibilCheck(false); setShowLoanApply(true); }} className="mt-8 w-full bg-slate-900 text-white py-5 rounded-full font-black uppercase text-sm tracking-widest">Apply Now</button>
+                  <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Shandaar Score!</h3>
+                  <p className="text-sm font-bold text-slate-500 mt-4 leading-relaxed px-4">Aapka credit profile bahut mazboot hai. Top banks se best interest rates par loan ke liye aap eligible hain.</p>
+                  <button onClick={() => { setShowCibilCheck(false); setShowLoanApply(true); }} className="mt-10 w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-6 rounded-full font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all">Apply for Loan Now</button>
                 </div>
               </div>
             ) : showLoanStatus ? (
@@ -1584,7 +1605,7 @@ const App: React.FC = () => {
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Application ID</p>
                       <h4 className="text-lg font-black text-slate-900">#BH-2026-8892</h4>
                     </div>
-                    <div className="bg-orange-50 text-orange-600 px-4 py-2 rounded-2xl text-[10px] font-black uppercase">In Progress</div>
+                    <div className="bg-red-50 text-red-600 px-4 py-2 rounded-2xl text-[10px] font-black uppercase">In Progress</div>
                   </div>
 
                   <div className="space-y-10 relative">
@@ -1600,7 +1621,7 @@ const App: React.FC = () => {
                       <div key={step.title} className="flex gap-6 relative z-10">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                           step.status === 'completed' ? 'bg-green-500 text-white' : 
-                          step.status === 'active' ? 'bg-orange-500 text-white animate-pulse' : 
+                          step.status === 'active' ? 'bg-red-600 text-white animate-pulse' : 
                           'bg-slate-100 text-slate-400'
                         }`}>
                           {step.status === 'completed' ? (
@@ -1657,7 +1678,7 @@ const App: React.FC = () => {
                         <div key={ride.id} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                           <div className="flex justify-between items-start mb-4">
                             <div>
-                              <span className="text-[8px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-md">{ride.vehicleType}</span>
+                              <span className="text-[8px] font-black text-red-600 uppercase bg-red-50 px-2 py-1 rounded-md">{ride.vehicleType}</span>
                               <h4 className="font-black text-slate-900 mt-2">{ride.to}</h4>
                               <p className="text-[10px] font-bold text-slate-400 uppercase">From: {ride.from}</p>
                             </div>
@@ -1695,18 +1716,18 @@ const App: React.FC = () => {
                 <div className="p-8 pb-4 flex justify-between items-start">
                   <div>
                     <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-1">JAI BHARAT VEHICLE HUB</h1>
-                    <p className="text-xs font-black text-blue-600 uppercase tracking-[0.2em]">Fast • Reliable • Safe</p>
+              <p className="text-xs font-black text-red-600 uppercase tracking-[0.2em]">Fast • Reliable • Safe</p>
                   </div>
                   <div className="flex flex-col gap-2">
                     <button 
                       onClick={() => setShowForm(true)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-blue-100"
+                      className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-slate-100"
                     >
                       + Post Vehicle
                     </button>
                     <button 
                       onClick={() => setShowRideHistory(true)}
-                      className="bg-slate-100 text-slate-900 px-4 py-2 rounded-2xl text-[10px] font-black uppercase border border-slate-200"
+                      className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-slate-100"
                     >
                       My Rides
                     </button>
@@ -1718,17 +1739,17 @@ const App: React.FC = () => {
                   {/* Ultra-Clear Search Card */}
                   <motion.div 
                     initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                    className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl shadow-blue-200 relative overflow-hidden group"
+                    className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl shadow-red-200 relative overflow-hidden group"
                   >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/20 rounded-full -mr-10 -mt-10 blur-2xl"></div>
                     <div className="relative z-10">
                       <h2 className="text-white text-2xl font-black mb-6 leading-tight">Where are you<br/>going today?</h2>
                       <button 
                         onClick={() => setBookingStage('search')}
                         className="w-full bg-white p-5 rounded-2xl flex items-center gap-4 shadow-xl active:scale-95 transition-all"
                       >
-                        <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
-                          <SearchIcon className="w-6 h-6 text-blue-600" />
+                        <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
+                          <SearchIcon className="w-6 h-6 text-red-600" />
                         </div>
                         <span className="text-lg font-bold text-slate-400">Enter Destination...</span>
                       </button>
@@ -1738,10 +1759,10 @@ const App: React.FC = () => {
                   {/* Bento Grid for Vehicle Types */}
                   <div className="grid grid-cols-2 gap-4">
                     {[
-                      { id: 'car', label: 'CAR', icon: '🚗', color: 'bg-indigo-50', iconColor: 'text-indigo-600', desc: 'Comfortable' },
-                      { id: 'auto', label: 'AUTO', icon: '🛺', color: 'bg-amber-50', iconColor: 'text-amber-600', desc: 'Quick' },
-                      { id: 'bus', label: 'BUS', icon: '🚌', color: 'bg-rose-50', iconColor: 'text-rose-600', desc: 'Group' },
-                      { id: 'tempo', label: 'TEMPO', icon: '🚚', color: 'bg-emerald-50', iconColor: 'text-emerald-600', desc: 'Luggage' }
+                      { id: 'car', label: 'CAR', icon: '🚗', color: 'bg-red-50', iconColor: 'text-red-600', desc: 'Comfortable' },
+                      { id: 'auto', label: 'AUTO', icon: '🛺', color: 'bg-green-50', iconColor: 'text-green-600', desc: 'Quick' },
+                      { id: 'bus', label: 'BUS', icon: '🚌', color: 'bg-slate-50', iconColor: 'text-slate-600', desc: 'Group' },
+                      { id: 'tempo', label: 'TEMPO', icon: '🚚', color: 'bg-red-50', iconColor: 'text-red-600', desc: 'Luggage' }
                     ].map((item, i) => (
                       <motion.button 
                         key={item.id}
@@ -1771,8 +1792,8 @@ const App: React.FC = () => {
                     <div className="h-48 bg-white rounded-2xl border border-slate-100 relative overflow-hidden shadow-inner">
                       <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] opacity-30"></div>
                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <div className="w-6 h-6 bg-blue-600 rounded-full border-4 border-white shadow-2xl z-10"></div>
-                        <div className="w-12 h-12 bg-blue-500/20 rounded-full animate-ping absolute -inset-3"></div>
+                        <div className="w-6 h-6 bg-red-600 rounded-full border-4 border-white shadow-2xl z-10"></div>
+                        <div className="w-12 h-12 bg-red-500/20 rounded-full animate-ping absolute -inset-3"></div>
                       </div>
                       <motion.div animate={{ x: [0, 150, 0], y: [0, 20, 0] }} transition={{ duration: 12, repeat: Infinity }} className="absolute top-1/4 left-1/4 text-2xl">🚗</motion.div>
                       <motion.div animate={{ x: [0, -120, 0], y: [0, -30, 0] }} transition={{ duration: 15, repeat: Infinity }} className="absolute bottom-1/4 right-1/4 text-2xl">🛺</motion.div>
@@ -1800,14 +1821,14 @@ const App: React.FC = () => {
                   </div>
 
                   {/* Safety Banner */}
-                  <div className="bg-blue-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden">
+                  <div className="bg-red-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10"></div>
                     <div className="relative z-10">
                       <h4 className="text-xl font-black uppercase tracking-tight mb-2">Your Safety is Our Priority</h4>
-                      <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest leading-relaxed">
+                      <p className="text-[10px] font-bold text-red-100 uppercase tracking-widest leading-relaxed">
                         Share your ride status with family and friends in real-time. Emergency SOS button available in every ride.
                       </p>
-                      <button className="mt-6 bg-white text-blue-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">Learn More</button>
+                      <button className="mt-6 bg-white text-red-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">Learn More</button>
                     </div>
                   </div>
 
@@ -1841,7 +1862,7 @@ const App: React.FC = () => {
                       </button>
                       <button 
                         onClick={() => handleConnectGps()}
-                        className="p-4 bg-orange-50 text-orange-600 rounded-2xl border border-orange-100 flex items-center justify-center"
+                        className="p-4 bg-red-50 text-red-600 rounded-2xl border border-red-100 flex items-center justify-center"
                         title="Connect GPS"
                       >
                         <SparkleIcon className="w-6 h-6 animate-pulse" />
@@ -1849,7 +1870,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-4 h-4 rounded-full bg-blue-500 shrink-0 z-10"></div>
+                    <div className="w-4 h-4 rounded-full bg-red-600 shrink-0 z-10"></div>
                     <button 
                       onClick={() => { setLocationPickerTarget('to'); setBookingStage('location_picker'); }}
                       className="flex-1 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left"
@@ -1862,7 +1883,7 @@ const App: React.FC = () => {
                 {bookingFrom && bookingTo && (
                   <button 
                     onClick={() => setBookingStage('ride_selection')}
-                    className="mt-auto w-full bg-slate-900 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-xl shrink-0"
+                    className="mt-auto w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-5 rounded-full font-black uppercase tracking-widest shadow-xl shrink-0 active:scale-95 transition-all"
                   >
                     Find Rides
                   </button>
@@ -1898,7 +1919,7 @@ const App: React.FC = () => {
                       <button 
                         key={ride.id} 
                         onClick={() => setSelectedRide(ride)}
-                        className={`w-full p-4 rounded-[2rem] border-2 transition-all flex items-center gap-4 ${selectedRide?.id === ride.id ? 'border-blue-500 bg-blue-50' : 'border-slate-50 bg-white'}`}
+                        className={`w-full p-4 rounded-[2rem] border-2 transition-all flex items-center gap-4 ${selectedRide?.id === ride.id ? 'border-red-600 bg-red-50' : 'border-slate-50 bg-white'}`}
                       >
                         <div className="text-4xl">{ride.icon}</div>
                         <div className="flex-1 text-left">
@@ -1914,7 +1935,7 @@ const App: React.FC = () => {
                   {selectedRide && (
                     <button 
                       onClick={() => setBookingStage('verification')}
-                      className="mt-8 w-full bg-blue-600 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-xl shadow-blue-100"
+                      className="mt-8 w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-5 rounded-full font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
                     >
                       Book {selectedRide.name}
                     </button>
@@ -1949,7 +1970,7 @@ const App: React.FC = () => {
                       <button 
                         disabled={userMobile.length !== 10}
                         onClick={() => setIsVerifying(true)}
-                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userMobile.length === 10 ? 'bg-slate-900 text-white shadow-slate-200' : 'bg-slate-100 text-slate-300'}`}
+                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userMobile.length === 10 ? 'bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 shadow-red-100' : 'bg-slate-100 text-slate-300'}`}
                       >
                         Send OTP
                       </button>
@@ -1975,14 +1996,14 @@ const App: React.FC = () => {
                                 setUserOtp(nextOtp.join('').slice(0, 4));
                               }
                             }}
-                            className="w-16 h-20 bg-slate-50 border border-slate-100 rounded-3xl text-center text-3xl font-black text-blue-600 outline-none focus:border-blue-500 transition-all"
+                            className="w-16 h-20 bg-slate-50 border border-slate-100 rounded-3xl text-center text-3xl font-black text-red-600 outline-none focus:border-red-600 transition-all"
                           />
                         ))}
                       </div>
                       <button 
                         disabled={userOtp.length !== 4}
                         onClick={handleBookRide}
-                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userOtp.length === 4 ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-100 text-slate-300'}`}
+                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userOtp.length === 4 ? 'bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 shadow-red-100' : 'bg-slate-100 text-slate-300'}`}
                       >
                         Verify & Book
                       </button>
@@ -1997,18 +2018,18 @@ const App: React.FC = () => {
             {bookingStage === 'confirming' && (
               <div className="bg-slate-900/95 backdrop-blur-md z-30 flex flex-col items-center justify-center p-10 text-center pb-20">
                 <div className="relative w-64 h-64 mb-10">
-                  <motion.div 
+                    <motion.div 
                     animate={{ scale: [1, 2], opacity: [0.5, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    className="absolute inset-0 border-2 border-blue-500 rounded-full"
+                    className="absolute inset-0 border-2 border-red-600 rounded-full"
                   ></motion.div>
                   <motion.div 
                     animate={{ scale: [1, 2.5], opacity: [0.3, 0] }}
                     transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-                    className="absolute inset-0 border-2 border-blue-400 rounded-full"
+                    className="absolute inset-0 border-2 border-green-600 rounded-full"
                   ></motion.div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-4xl shadow-2xl shadow-blue-500/50">
+                    <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center text-4xl shadow-2xl shadow-red-500/50">
                       {selectedRide?.icon}
                     </div>
                   </div>
@@ -2046,7 +2067,7 @@ const App: React.FC = () => {
                      <motion.path 
                        d="M 100 100 L 200 300 L 350 150" 
                        fill="none" 
-                       stroke="#3b82f6" 
+                       stroke="#dc2626" 
                        strokeWidth="4" 
                        strokeDasharray="10 10"
                        initial={{ pathLength: 0 }}
@@ -2062,14 +2083,14 @@ const App: React.FC = () => {
                        y: [100, 300, 150]
                      }}
                      transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                     className="absolute w-10 h-10 bg-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-10 border-2 border-blue-500"
+                     className="absolute w-10 h-10 bg-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-10 border-2 border-red-600"
                    >
                      {selectedRide?.icon || '🚗'}
                    </motion.div>
 
                    {/* User Marker */}
-                   <div className="absolute top-[150px] left-[350px] w-6 h-6 bg-blue-600 rounded-full border-4 border-white shadow-xl z-20">
-                     <div className="absolute -inset-4 bg-blue-500/20 rounded-full animate-ping"></div>
+                   <div className="absolute top-[150px] left-[350px] w-6 h-6 bg-red-600 rounded-full border-4 border-white shadow-xl z-20">
+                     <div className="absolute -inset-4 bg-red-600/20 rounded-full animate-ping"></div>
                    </div>
 
                    {/* Distance Indicator */}
@@ -2080,7 +2101,7 @@ const App: React.FC = () => {
                      </div>
                      <div className="flex-1 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20">
                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">ETA</p>
-                       <p className="text-lg font-black text-blue-600">3 MINS</p>
+                       <p className="text-lg font-black text-red-600">3 MINS</p>
                      </div>
                    </div>
                 </div>
@@ -2094,7 +2115,7 @@ const App: React.FC = () => {
                       <img src={driverAssigned?.avatar} className="w-14 h-14 rounded-2xl object-cover shadow-md" alt="" />
                       <div>
                         <h4 className="font-black text-slate-900 uppercase text-xs">{driverAssigned?.name}</h4>
-                        <div className="flex items-center gap-1 text-orange-500">
+                        <div className="flex items-center gap-1 text-red-600">
                           <StarIcon className="w-3 h-3 fill-current" />
                           <span className="text-[9px] font-black">{driverAssigned?.rating}</span>
                         </div>
@@ -2102,7 +2123,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">OTP</p>
-                      <h3 className="text-xl font-black text-blue-600 tracking-widest">{driverAssigned?.otp}</h3>
+                      <h3 className="text-xl font-black text-red-600 tracking-widest">{driverAssigned?.otp}</h3>
                     </div>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center mb-6">
@@ -2129,7 +2150,7 @@ const App: React.FC = () => {
                     </button>
                     <button 
                       onClick={() => alert('Ride Status Shared with your family!')}
-                      className="bg-blue-50 text-blue-600 py-4 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 border border-blue-100"
+                      className="bg-green-50 text-green-600 py-4 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 border border-green-100"
                     >
                       Share Ride
                     </button>
@@ -2143,8 +2164,8 @@ const App: React.FC = () => {
               <div className="bg-white z-50 p-6 animate-smart pb-20">
                 <div className="flex items-center gap-4 mb-8">
                   <button onClick={() => setBookingStage('search')} className="p-2"><BackIcon className="w-6 h-6 text-slate-400"/></button>
-                  <div className="flex-1 bg-blue-50 p-4 rounded-3xl border border-blue-100 flex items-center gap-3">
-                    <SearchIcon className="w-5 h-5 text-blue-500" />
+                  <div className="flex-1 bg-red-50 p-4 rounded-3xl border border-red-100 flex items-center gap-3">
+                    <SearchIcon className="w-5 h-5 text-red-600" />
                     <input 
                       type="text" 
                       placeholder={`Type ${locationPickerTarget === 'from' ? 'Pickup' : 'Destination'}...`}
@@ -2167,9 +2188,9 @@ const App: React.FC = () => {
                   {/* Set on Map Action */}
                     <button 
                       onClick={() => handleCitySelect('Map Location')}
-                      className="w-full flex items-center gap-4 p-4 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-blue-50 hover:border-blue-200 transition-all group"
+                      className="w-full flex items-center gap-4 p-4 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-red-50 hover:border-red-200 transition-all group"
                     >
-                      <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                      <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-red-600 group-hover:scale-110 transition-transform">
                         <MapPinIcon className="w-6 h-6" />
                       </div>
                       <div className="text-left">
@@ -2182,9 +2203,9 @@ const App: React.FC = () => {
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Saved Places</h3>
                       <div className="space-y-3">
                         {[
-                          { name: 'Home', address: 'Borivali East, Mumbai', icon: '🏠', color: 'bg-indigo-50 text-indigo-600' },
-                          { name: 'Work', address: 'Andheri West, Mumbai', icon: '🏢', color: 'bg-blue-50 text-blue-600' },
-                          { name: 'Gym', address: 'Dadar, Mumbai', icon: '🏋️', color: 'bg-rose-50 text-rose-600' }
+                          { name: 'Home', address: 'Borivali East, Mumbai', icon: '🏠', color: 'bg-red-50 text-red-600' },
+                          { name: 'Work', address: 'Andheri West, Mumbai', icon: '🏢', color: 'bg-green-50 text-green-600' },
+                          { name: 'Gym', address: 'Dadar, Mumbai', icon: '🏋️', color: 'bg-slate-50 text-slate-600' }
                         ].map((place, i) => (
                           <button 
                             key={i}
@@ -2224,7 +2245,7 @@ const App: React.FC = () => {
           <div className="p-6 animate-smart pb-20">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-black uppercase tracking-tighter">Property Hub</h2>
-              <button onClick={() => setShowForm(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase">+ List Property</button>
+              <button onClick={() => setShowForm(true)} className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all">+ List Property</button>
             </div>
             
             <div className="space-y-8">
@@ -2238,7 +2259,7 @@ const App: React.FC = () => {
                         <h4 className="font-black text-sm text-slate-900 uppercase leading-tight">{b.buildingName}</h4>
                         <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{b.builderName}</p>
                         <div className="mt-3 flex items-center gap-2">
-                          <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[8px] font-black uppercase">{b.propertyType}</span>
+                          <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded text-[8px] font-black uppercase">{b.propertyType}</span>
                           <span className="text-[8px] font-bold text-slate-400 uppercase">{b.location}</span>
                         </div>
                       </div>
@@ -2261,30 +2282,95 @@ const App: React.FC = () => {
               </section>
             </div>
           </div>
+        ) : activeTab === 'grocery' ? (
+          <div className="bg-white animate-smart pb-20">
+            <div className="p-8 pb-4">
+              <div className="flex justify-between items-center mb-1">
+                <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">GROCERY HUB</h1>
+                <button onClick={() => setShowForm(true)} className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">+ Post Product</button>
+              </div>
+              <p className="text-xs font-black text-red-600 uppercase tracking-[0.2em]">Fresh Items • Local Sellers</p>
+            </div>
+
+            <div className="px-6 mb-8">
+              <div className="bg-white rounded-[2rem] p-2 flex items-center gap-3 border border-slate-100 shadow-sm focus-within:border-red-200 focus-within:shadow-red-100/50 transition-all">
+                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <SearchIcon className="w-5 h-5 text-slate-400" />
+                </div>
+                <input 
+                  type="text" 
+                  value={grocerySearch}
+                  placeholder="Search for Milk, Eggs, Fruits..." 
+                  className="bg-transparent flex-1 outline-none text-sm font-bold text-slate-900 placeholder:text-slate-300"
+                  onChange={(e) => setGrocerySearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                {groceryProducts.filter(p => 
+                  p.productName.toLowerCase().includes(grocerySearch.toLowerCase()) || 
+                  p.category.toLowerCase().includes(grocerySearch.toLowerCase())
+                ).length > 0 ? groceryProducts.filter(p => 
+                  p.productName.toLowerCase().includes(grocerySearch.toLowerCase()) || 
+                  p.category.toLowerCase().includes(grocerySearch.toLowerCase())
+                ).map(p => (
+                  <div key={p.id} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm group hover:shadow-md transition-all">
+                    <div className="h-40 relative">
+                      <img src={p.photo} className="w-full h-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
+                      <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[8px] font-black uppercase text-red-600 shadow-sm">
+                        {p.category}
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h4 className="font-black text-slate-900 uppercase text-[11px] truncate">{p.productName}</h4>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase truncate mt-1">🏪 {p.sellerName}</p>
+                      <div className="flex items-center justify-between mt-4">
+                        <div>
+                          <span className="text-sm font-black text-slate-900">{p.price}</span>
+                          <span className="text-[8px] font-bold text-slate-400 ml-1 uppercase">{p.unit}</span>
+                        </div>
+                        <button onClick={() => captureLead('Grocery', p.productName)} className="w-8 h-8 bg-white border-t border-t-red-600 border-b border-b-green-600 text-red-600 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
+                          <PhoneIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="col-span-2 text-center py-20 bg-slate-50 rounded-[3rem] border border-dashed border-slate-200">
+                    <p className="text-xs font-bold text-slate-400 uppercase">No products found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         ) : activeTab === 'local' ? (
           <div className="bg-white animate-smart pb-20">
             {/* Header */}
             <div className="p-8 pb-4">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">LOCAL HUB</h1>
-                <button onClick={() => setShowForm(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-orange-100">+ Post</button>
+                <button onClick={() => setShowForm(true)} className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">+ Post</button>
               </div>
-              <p className="text-xs font-black text-orange-600 uppercase tracking-[0.2em]">100+ Services • Verified Experts</p>
+              <p className="text-xs font-black text-red-600 uppercase tracking-[0.2em]">100+ Services • Verified Experts</p>
             </div>
 
             {/* Search Bar */}
-            <div className="px-6 mb-6">
-              <div className="bg-slate-100 rounded-3xl p-4 flex items-center gap-3 border border-slate-200">
-                <SearchIcon className="w-5 h-5 text-slate-400" />
+            <div className="px-6 mb-8">
+              <div className="bg-white rounded-[2rem] p-2 flex items-center gap-3 border border-slate-100 shadow-sm focus-within:border-red-200 focus-within:shadow-red-100/50 transition-all">
+                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <SearchIcon className="w-5 h-5 text-slate-400" />
+                </div>
                 <input 
                   type="text" 
                   value={serviceSearch}
                   placeholder="Search for Plumber, Electrician..." 
-                  className="bg-transparent flex-1 outline-none text-sm font-bold text-slate-900"
+                  className="bg-transparent flex-1 outline-none text-sm font-bold text-slate-900 placeholder:text-slate-300"
                   onChange={(e) => setServiceSearch(e.target.value)}
                 />
                 {serviceSearch && (
-                  <button onClick={() => setServiceSearch('')} className="text-slate-400 hover:text-slate-600">
+                  <button onClick={() => setServiceSearch('')} className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-slate-500 transition-colors">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                   </button>
                 )}
@@ -2293,116 +2379,125 @@ const App: React.FC = () => {
 
             {/* Categories Grid */}
             <div className="px-6 pb-10">
-              <div className="grid grid-cols-3 gap-3 mb-10">
+              <div className="grid grid-cols-3 gap-4 mb-10">
                 {[
-                  { icon: '🪠', label: 'Plumber' },
-                  { icon: '⚡', label: 'Electrician' },
-                  { icon: '⚖️', label: 'Advocate' },
-                  { icon: '🏨', label: 'Hotel' },
-                  { icon: '🛒', label: 'Grocery' },
-                  { icon: '🪚', label: 'Carpenter' },
-                  { icon: '🎨', label: 'Painter' },
-                  { icon: '🔧', label: 'Mechanic' },
-                  { icon: '🧵', label: 'Tailor' },
-                  { icon: '✂️', label: 'Barber' },
-                  { icon: '👨‍⚕️', label: 'Doctor' },
-                  { icon: '🦷', label: 'Dentist' },
-                  { icon: '💊', label: 'Pharmacy' },
-                  { icon: '🧺', label: 'Laundry' },
-                  { icon: '📦', label: 'Courier' },
-                  { icon: '📸', label: 'Photographer' },
-                  { icon: '🧘', label: 'Yoga' },
-                  { icon: '🏋️', label: 'Gym' },
-                  { icon: '🎓', label: 'Tutor' },
-                  { icon: '🏠', label: 'Real Estate' },
-                  { icon: '🛋️', label: 'Interior' },
-                  { icon: '📐', label: 'Architect' },
-                  { icon: '📊', label: 'CA' },
-                  { icon: '📄', label: 'Insurance' },
-                  { icon: '✈️', label: 'Travel' },
-                  { icon: '🎉', label: 'Events' },
-                  { icon: '🍽️', label: 'Caterer' },
-                  { icon: '💐', label: 'Florist' },
-                  { icon: '✂️', label: 'Pet Groom' },
-                  { icon: '🐕', label: 'Vet' },
-                  { icon: '🐜', label: 'Pest Ctrl' },
-                  { icon: '🧹', label: 'Cleaning' },
-                  { icon: '👮', label: 'Security' },
-                  { icon: '🚗', label: 'Driver' },
-                  { icon: '👨‍🍳', label: 'Cook' },
-                  { icon: '👶', label: 'Nanny' },
-                  { icon: '🌳', label: 'Gardener' },
-                  { icon: '💻', label: 'PC Repair' },
-                  { icon: '📱', label: 'Mobile Rep' },
-                  { icon: '❄️', label: 'AC Repair' },
-                  { icon: '🚰', label: 'RO Repair' },
-                  { icon: '🧊', label: 'Fridge Rep' },
-                  { icon: '🧺', label: 'WM Repair' },
-                  { icon: '📺', label: 'TV Repair' },
-                  { icon: '🔑', label: 'Key Maker' },
-                  { icon: '🪟', label: 'Glass Work' },
-                  { icon: '🏗️', label: 'Aluminum' },
-                  { icon: '🔥', label: 'Welder' },
-                  { icon: '🧱', label: 'Mason' },
-                  { icon: '📐', label: 'Tile Layer' },
-                  { icon: '🏗️', label: 'Plasterer' },
-                  { icon: '💧', label: 'Waterproof' },
-                  { icon: '☀️', label: 'Solar' },
-                  { icon: '📹', label: 'CCTV' },
-                  { icon: '🏠', label: 'Smart Home' },
-                  { icon: '🚚', label: 'Movers' },
-                  { icon: '🧼', label: 'Car Wash' },
-                  { icon: '🏍️', label: 'Bike Svc' },
-                  { icon: '🛞', label: 'Tyre Shop' },
-                  { icon: '🔋', label: 'Battery' },
-                  { icon: '📝', label: 'Stationery' },
-                  { icon: '🛠️', label: 'Hardware' },
-                  { icon: '💡', label: 'Electrical' },
-                  { icon: '🚽', label: 'Sanitary' },
-                  { icon: '🖌️', label: 'Paint Shop' },
-                  { icon: '🪑', label: 'Furniture' },
-                  { icon: '🛏️', label: 'Mattress' },
-                  { icon: '🪟', label: 'Curtain' },
-                  { icon: '👕', label: 'Clothing' },
-                  { icon: '👟', label: 'Footwear' },
-                  { icon: '💎', label: 'Jewelry' },
-                  { icon: '👓', label: 'Optical' },
-                  { icon: '⌚', label: 'Watch Rep' },
-                  { icon: '📲', label: 'Mobile Shop' },
-                  { icon: '📺', label: 'Electronics' },
-                  { icon: '🍳', label: 'Appliances' },
-                  { icon: '🎁', label: 'Gift Shop' },
-                  { icon: '🧸', label: 'Toy Store' },
-                  { icon: '⚽', label: 'Sports' },
-                  { icon: '🎸', label: 'Musical' },
-                  { icon: '📚', label: 'Books' },
-                  { icon: '🖨️', label: 'Printing' },
-                  { icon: '🌐', label: 'Cyber Cafe' },
-                  { icon: '📄', label: 'Xerox' },
-                  { icon: '📮', label: 'Courier' },
-                  { icon: '💄', label: 'Parlor' },
-                  { icon: '🧖', label: 'Spa' },
-                  { icon: '💉', label: 'Tattoo' },
-                  { icon: '✋', label: 'Mehndi' },
-                  { icon: '🎨', label: 'Makeup' },
-                  { icon: '🔮', label: 'Astrologer' },
-                  { icon: '📿', label: 'Pandit' },
-                  { icon: '👨‍⚖️', label: 'Lawyer' },
-                  { icon: '🖋️', label: 'Notary' },
-                  { icon: '⌨️', label: 'Typing' },
-                  { icon: '🗣️', label: 'Translate' },
-                  { icon: '🛂', label: 'Visa' },
-                  { icon: '📖', label: 'Passport' },
-                  { icon: '🚦', label: 'RTO' },
-                  { icon: '🆔', label: 'Aadhaar' }
+                  { icon: '🪠', label: 'Plumber', color: 'bg-red-50' },
+                  { icon: '⚡', label: 'Electrician', color: 'bg-green-50' },
+                  { icon: '⚖️', label: 'Advocate', color: 'bg-slate-50' },
+                  { icon: '🏨', label: 'Hotel', color: 'bg-red-50' },
+                  { icon: '🛒', label: 'Grocery', color: 'bg-green-50' },
+                  { icon: '🪚', label: 'Carpenter', color: 'bg-slate-50' },
+                  { icon: '🎨', label: 'Painter', color: 'bg-red-50' },
+                  { icon: '🔧', label: 'Mechanic', color: 'bg-green-50' },
+                  { icon: '🧵', label: 'Tailor', color: 'bg-slate-50' },
+                  { icon: '✂️', label: 'Barber', color: 'bg-red-50' },
+                  { icon: '👨‍⚕️', label: 'Doctor', color: 'bg-green-50' },
+                  { icon: '🦷', label: 'Dentist', color: 'bg-slate-50' },
+                  { icon: '💊', label: 'Pharmacy', color: 'bg-red-50' },
+                  { icon: '🧺', label: 'Laundry', color: 'bg-green-50' },
+                  { icon: '📦', label: 'Courier', color: 'bg-slate-50' },
+                  { icon: '📸', label: 'Photographer', color: 'bg-red-50' },
+                  { icon: '🧘', label: 'Yoga', color: 'bg-green-50' },
+                  { icon: '🏋️', label: 'Gym', color: 'bg-slate-50' },
+                  { icon: '🎓', label: 'Tutor', color: 'bg-red-50' },
+                  { icon: '🏠', label: 'Real Estate', color: 'bg-green-50' },
+                  { icon: '🛋️', label: 'Interior', color: 'bg-slate-50' },
+                  { icon: '📐', label: 'Architect', color: 'bg-red-50' },
+                  { icon: '📊', label: 'CA', color: 'bg-green-50' },
+                  { icon: '📄', label: 'Insurance', color: 'bg-slate-50' },
+                  { icon: '✈️', label: 'Travel', color: 'bg-red-50' },
+                  { icon: '🎉', label: 'Events', color: 'bg-green-50' },
+                  { icon: '🍽️', label: 'Caterer', color: 'bg-slate-50' },
+                  { icon: '💐', label: 'Florist', color: 'bg-red-50' },
+                  { icon: '✂️', label: 'Pet Groom', color: 'bg-green-50' },
+                  { icon: '🐕', label: 'Vet', color: 'bg-slate-50' },
+                  { icon: '🐜', label: 'Pest Ctrl', color: 'bg-red-50' },
+                  { icon: '🧹', label: 'Cleaning', color: 'bg-green-50' },
+                  { icon: '👮', label: 'Security', color: 'bg-slate-900' },
+                  { icon: '🚗', label: 'Driver', color: 'bg-slate-50' },
+                  { icon: '👨‍🍳', label: 'Cook', color: 'bg-red-50' },
+                  { icon: '👶', label: 'Nanny', color: 'bg-green-50' },
+                  { icon: '🌳', label: 'Gardener', color: 'bg-slate-50' },
+                  { icon: '💻', label: 'PC Repair', color: 'bg-red-50' },
+                  { icon: '📱', label: 'Mobile Rep', color: 'bg-green-50' },
+                  { icon: '❄️', label: 'AC Repair', color: 'bg-slate-50' },
+                  { icon: '🚰', label: 'RO Repair', color: 'bg-red-50' },
+                  { icon: '🧊', label: 'Fridge Rep', color: 'bg-green-50' },
+                  { icon: '🧺', label: 'WM Repair', color: 'bg-slate-50' },
+                  { icon: '📺', label: 'TV Repair', color: 'bg-red-50' },
+                  { icon: '🔑', label: 'Key Maker', color: 'bg-green-50' },
+                  { icon: '🪟', label: 'Glass Work', color: 'bg-slate-50' },
+                  { icon: '🏗️', label: 'Aluminum', color: 'bg-red-50' },
+                  { icon: '🔥', label: 'Welder', color: 'bg-green-50' },
+                  { icon: '🧱', label: 'Mason', color: 'bg-slate-50' },
+                  { icon: '📐', label: 'Tile Layer', color: 'bg-red-50' },
+                  { icon: '🏗️', label: 'Plasterer', color: 'bg-green-50' },
+                  { icon: '💧', label: 'Waterproof', color: 'bg-slate-50' },
+                  { icon: '☀️', label: 'Solar', color: 'bg-red-50' },
+                  { icon: '📹', label: 'CCTV', color: 'bg-slate-900' },
+                  { icon: '🏠', label: 'Smart Home', color: 'bg-green-50' },
+                  { icon: '🚚', label: 'Movers', color: 'bg-slate-50' },
+                  { icon: '🧼', label: 'Car Wash', color: 'bg-red-50' },
+                  { icon: '🏍️', label: 'Bike Svc', color: 'bg-green-50' },
+                  { icon: '🛞', label: 'Tyre Shop', color: 'bg-slate-900' },
+                  { icon: '🔋', label: 'Battery', color: 'bg-red-50' },
+                  { icon: '📝', label: 'Stationery', color: 'bg-green-50' },
+                  { icon: '🛠️', label: 'Hardware', color: 'bg-slate-50' },
+                  { icon: '💡', label: 'Electrical', color: 'bg-red-50' },
+                  { icon: '🚽', label: 'Sanitary', color: 'bg-green-50' },
+                  { icon: '🖌️', label: 'Paint Shop', color: 'bg-slate-50' },
+                  { icon: '🪑', label: 'Furniture', color: 'bg-red-50' },
+                  { icon: '🛏️', label: 'Mattress', color: 'bg-green-50' },
+                  { icon: '🪟', label: 'Curtain', color: 'bg-slate-50' },
+                  { icon: '👕', label: 'Clothing', color: 'bg-red-50' },
+                  { icon: '👟', label: 'Footwear', color: 'bg-slate-50' },
+                  { icon: '💎', label: 'Jewelry', color: 'bg-green-50' },
+                  { icon: '眼镜', label: 'Optical', color: 'bg-slate-50' },
+                  { icon: '⌚', label: 'Watch Rep', color: 'bg-slate-50' },
+                  { icon: '📲', label: 'Mobile Shop', color: 'bg-red-50' },
+                  { icon: '📺', label: 'Electronics', color: 'bg-slate-50' },
+                  { icon: '🍳', label: 'Appliances', color: 'bg-green-50' },
+                  { icon: '🎁', label: 'Gift Shop', color: 'bg-red-50' },
+                  { icon: '🧸', label: 'Toy Store', color: 'bg-green-50' },
+                  { icon: '⚽', label: 'Sports', color: 'bg-green-50' },
+                  { icon: '🎸', label: 'Musical', color: 'bg-slate-50' },
+                  { icon: '📚', label: 'Books', color: 'bg-red-50' },
+                  { icon: '🖨️', label: 'Printing', color: 'bg-slate-50' },
+                  { icon: '🌐', label: 'Cyber Cafe', color: 'bg-green-50' },
+                  { icon: '📄', label: 'Xerox', color: 'bg-slate-50' },
+                  { icon: '📮', label: 'Courier', color: 'bg-red-50' },
+                  { icon: '💄', label: 'Parlor', color: 'bg-green-50' },
+                  { icon: '🧖', label: 'Spa', color: 'bg-slate-50' },
+                  { icon: '💉', label: 'Tattoo', color: 'bg-slate-900' },
+                  { icon: '✋', label: 'Mehndi', color: 'bg-red-50' },
+                  { icon: '🎨', label: 'Makeup', color: 'bg-green-50' },
+                  { icon: '🔮', label: 'Astrologer', color: 'bg-slate-50' },
+                  { icon: '📿', label: 'Pandit', color: 'bg-red-50' },
+                  { icon: '👨‍⚖️', label: 'Lawyer', color: 'bg-slate-50' },
+                  { icon: '🖋️', label: 'Notary', color: 'bg-slate-50' },
+                  { icon: '⌨️', label: 'Typing', color: 'bg-slate-50' },
+                  { icon: '🗣️', label: 'Translate', color: 'bg-green-50' },
+                  { icon: '🛂', label: 'Visa', color: 'bg-slate-50' },
+                  { icon: '📖', label: 'Passport', color: 'bg-green-50' },
+                  { icon: '🚦', label: 'RTO', color: 'bg-slate-50' },
+                  { icon: '🆔', label: 'Aadhaar', color: 'bg-red-50' }
                 ].filter(c => c.label.toLowerCase().includes(serviceSearch.toLowerCase())).map((cat, i) => (
-                  <button 
-                    key={i} 
-                    onClick={() => setServiceSearch(cat.label)}
-                    className="bg-slate-50 p-4 rounded-3xl flex flex-col items-center justify-center gap-2 border border-slate-100 active:scale-95 transition-all hover:bg-orange-50 hover:border-orange-100 group"
-                  >
-                    <span className="text-3xl group-hover:scale-110 transition-transform">{cat.icon}</span>
-                    <span className="text-[9px] font-black text-slate-900 uppercase tracking-tighter text-center">{cat.label}</span>
+                    <button 
+                      key={i} 
+                      onClick={() => setServiceSearch(cat.label)}
+                      className={`group relative bg-white p-4 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 border transition-all hover:shadow-md ${
+                        serviceSearch === cat.label 
+                          ? 'border-t-4 border-t-red-600 border-b-4 border-b-green-600 shadow-xl scale-105' 
+                          : 'border-slate-100 shadow-sm hover:border-red-100'
+                      }`}
+                    >
+                    <div className={`w-14 h-14 ${cat.color} rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform shadow-inner`}>
+                      {cat.icon}
+                    </div>
+                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-tighter text-center leading-tight">{cat.label}</span>
+                    {serviceSearch === cat.label && (
+                      <div className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full animate-pulse"></div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2416,11 +2511,11 @@ const App: React.FC = () => {
                       <img src={s.photo} className="w-full h-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-[8px] font-black text-orange-600 uppercase bg-orange-50 px-2 py-0.5 rounded-md">{s.category}</span>
+                      <span className="text-[8px] font-black text-red-600 uppercase bg-red-50 px-2 py-0.5 rounded-md">{s.category}</span>
                       <h4 className="font-bold text-slate-900 truncate mt-1">{s.businessName}</h4>
                       <p className="text-[10px] text-slate-400 font-bold uppercase truncate">📍 {s.location}</p>
                     </div>
-                    <button onClick={()=>captureLead('Service', s.businessName)} className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center shadow-lg"><PhoneIcon className="w-4 h-4"/></button>
+                    <button onClick={()=>captureLead('Service', s.businessName)} className="w-10 h-10 bg-white border-t border-t-red-600 border-b border-b-green-600 text-red-600 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all"><PhoneIcon className="w-4 h-4"/></button>
                   </div>
                 )) : (
                   <div className="text-center py-10 bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
@@ -2470,9 +2565,9 @@ const App: React.FC = () => {
               {currentUser?.role === 'admin' && (
                 <button 
                   onClick={() => setView('admin_console')}
-                  className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center gap-3 active:scale-95 transition-all group hover:bg-slate-900 hover:text-white"
+                  className="bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 p-6 rounded-[2.5rem] text-slate-900 shadow-xl shadow-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all group"
                 >
-                  <div className="w-12 h-12 bg-slate-50 text-slate-900 rounded-2xl flex items-center justify-center group-hover:bg-white/10 group-hover:text-white"><ToolsIcon className="w-6 h-6"/></div>
+                  <div className="w-12 h-12 bg-slate-50 text-red-600 rounded-2xl flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all shadow-inner"><ToolsIcon className="w-6 h-6"/></div>
                   <span className="text-[10px] font-black uppercase tracking-widest">Admin Console</span>
                 </button>
               )}
@@ -2482,9 +2577,9 @@ const App: React.FC = () => {
                   const aiChat = chats.find(c => c.id === 'ai');
                   if (aiChat) setActiveChat(aiChat);
                 }}
-                className={`bg-orange-500 p-6 rounded-[2.5rem] text-white shadow-xl shadow-orange-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all ${currentUser?.role !== 'admin' ? 'col-span-2' : ''}`}
+                className={`bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 p-6 rounded-[2.5rem] text-slate-900 shadow-xl shadow-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all ${currentUser?.role !== 'admin' ? 'col-span-2' : ''}`}
               >
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center"><ChatIcon className="w-6 h-6"/></div>
+                <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center shadow-inner"><ChatIcon className="w-6 h-6"/></div>
                 <span className="text-[10px] font-black uppercase tracking-widest">Vartalap AI</span>
               </button>
             </div>
@@ -2494,17 +2589,22 @@ const App: React.FC = () => {
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Hub Activity</h3>
               <div className="space-y-6">
                 {[
-                  { label: 'Vehicles Available', count: vehicles.length, color: 'bg-blue-500' },
-                  { label: 'Properties Listed', count: builders.length + owners.length, color: 'bg-yellow-500' },
-                  { label: 'Active Services', count: localServices.length, color: 'bg-orange-500' }
+                  { label: 'Vehicles Available', count: vehicles.length, color: 'bg-red-600', tab: 'vehicle' },
+                  { label: 'Properties Listed', count: builders.length + owners.length, color: 'bg-slate-900', tab: 'property' },
+                  { label: 'Grocery Products', count: groceryProducts.length, color: 'bg-green-600', tab: 'grocery' },
+                  { label: 'Active Services', count: localServices.length, color: 'bg-red-500', tab: 'local' }
                 ].map(stat => (
-                  <div key={stat.label} className="flex items-center justify-between">
+                  <button 
+                    key={stat.label} 
+                    onClick={() => setActiveTab(stat.tab as Tab)}
+                    className="w-full flex items-center justify-between hover:bg-slate-50 p-2 rounded-xl transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${stat.color}`}></div>
                       <span className="text-xs font-bold text-slate-700 uppercase">{stat.label}</span>
                     </div>
                     <span className="text-sm font-black text-slate-900">{stat.count}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -2520,7 +2620,7 @@ const App: React.FC = () => {
       {!activeChat && activeTab === 'chat' && (
         <button 
           onClick={() => setActiveChat(chats.find(c => c.id === 'ai') || null)}
-          className="fixed right-6 bottom-32 w-16 h-16 bg-gradient-to-tr from-orange-500 to-orange-400 text-white rounded-full shadow-2xl shadow-orange-200 flex items-center justify-center z-40 animate-bounce active:scale-90 transition-all border-4 border-white"
+          className="fixed right-6 bottom-32 w-16 h-16 bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-red-600 rounded-full shadow-2xl shadow-red-100 flex items-center justify-center z-40 animate-bounce active:scale-90 transition-all"
         >
           <SparkleIcon className="w-8 h-8" />
         </button>
@@ -2529,18 +2629,23 @@ const App: React.FC = () => {
       <div className="bg-white/95 backdrop-blur-md flex justify-around items-end pb-safe border-t border-slate-100 z-50 h-[85px] shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] overflow-x-auto no-scrollbar">
         {[
           { id: 'hub', label: 'HUB', icon: <MenuIcon className="w-5 h-5" />, color: 'bg-slate-900' },
-          { id: 'chat', label: 'VARTALAP', icon: <ChatIcon className="w-5 h-5" />, color: 'bg-slate-900' },
-          { id: 'vehicle', label: 'VEHICLE', icon: <VehicleIcon className="w-5 h-5" />, color: 'bg-blue-500' },
-          { id: 'loan', label: 'LOAN', icon: <LoanIcon className="w-5 h-5" />, color: 'bg-red-500' },
-          { id: 'local', label: 'SERVICES', icon: <ToolsIcon className="w-5 h-5" />, color: 'bg-orange-500' },
-          { id: 'property', label: 'PROPERTY', icon: <HomeIcon className="w-5 h-5" />, color: 'bg-yellow-500' }
+          { id: 'chat', label: 'VARTALAP', icon: <ChatIcon className="w-5 h-5" />, color: 'bg-red-600' },
+          { id: 'vehicle', label: 'VEHICLE', icon: <VehicleIcon className="w-5 h-5" />, color: 'bg-green-600' },
+          { id: 'loan', label: 'LOAN', icon: <LoanIcon className="w-5 h-5" />, color: 'bg-red-600' },
+          { id: 'grocery', label: 'GROCERY', icon: <ShoppingBagIcon className="w-5 h-5" />, color: 'bg-green-600' },
+          { id: 'local', label: 'SERVICES', icon: <ToolsIcon className="w-5 h-5" />, color: 'bg-red-600' },
+          { id: 'property', label: 'PROPERTY', icon: <HomeIcon className="w-5 h-5" />, color: 'bg-green-600' }
         ].map(t => (
           <button 
             key={t.id} 
             onClick={() => { setActiveTab(t.id as Tab); setBookingStage('hub'); setShowForm(false); setShowLoanApply(false); }} 
             className={`flex flex-col items-center gap-2 mb-2 transition-all duration-300 min-w-[60px] ${activeTab === t.id ? 'scale-110' : 'opacity-70'}`}
           >
-            <div className={`${t.color} w-10 h-10 rounded-[1rem] flex items-center justify-center text-white shadow-lg ${activeTab === t.id ? 'ring-4 ring-slate-100' : ''}`}>
+            <div className={`${
+              activeTab === t.id 
+                ? 'bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 shadow-xl' 
+                : t.color + ' text-white'
+            } w-10 h-10 rounded-[1rem] flex items-center justify-center shadow-lg ${activeTab === t.id ? 'ring-4 ring-slate-100' : ''}`}>
               {t.icon}
             </div>
             <span className={`text-[7px] font-black uppercase tracking-[0.1em] text-slate-700`}>{t.label}</span>

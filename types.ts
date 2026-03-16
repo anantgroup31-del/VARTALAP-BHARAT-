@@ -76,7 +76,8 @@ export interface VehicleListing {
   title: string;
   description: string;
   coords?: { lat: number; lng: number };
-  status: 'Available' | 'Busy';
+  status: 'active' | 'pending';
+  availability: 'Available' | 'Busy';
   timestamp: string;
 }
 
@@ -107,6 +108,8 @@ export interface OwnerListing {
   title: string;
   description: string;
   timestamp: string;
+  status: 'active' | 'pending';
+  uid: string;
 }
 
 export interface StatusUpdate {
@@ -160,4 +163,19 @@ export interface GlobalStats {
   onlineNow: number;
   aiMessagesToday: number;
   uptime: string;
+}
+
+export interface GroceryProduct {
+  id: string;
+  sellerName: string;
+  productName: string;
+  price: string;
+  unit: string;
+  category: string;
+  photo: string;
+  location: string;
+  description: string;
+  status: 'active' | 'pending';
+  timestamp: string;
+  uid: string;
 }

@@ -6,35 +6,58 @@ interface IconProps {
 
 export const VartalapBharatLogo = memo(({ className = "w-20 h-20" }: IconProps) => (
   <div className={`relative flex flex-col items-center justify-center ${className}`}>
-    <svg viewBox="0 0 400 320" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-sm">
-      {/* Flag Arc */}
-      <path d="M60 180C60 100 140 40 250 40C330 40 380 90 380 180C380 270 330 320 250 320" 
-            stroke="#FF9933" strokeWidth="25" strokeLinecap="round" opacity="0.9" />
-      <path d="M85 180C85 115 150 65 240 65C310 65 350 105 350 180C350 255 310 295 240 295" 
-            stroke="white" strokeWidth="25" strokeLinecap="round" />
-      <path d="M110 180C110 130 160 90 230 90C290 90 320 120 320 180C320 240 290 270 230 270" 
-            stroke="#138808" strokeWidth="25" strokeLinecap="round" opacity="0.9" />
-      
-      {/* Handshake Sketch */}
-      <g transform="translate(70, 130) scale(1.4)">
-        {/* Left Sleeve (Orange) */}
-        <path d="M10 50L40 50C45 50 48 48 48 43L48 17C48 12 45 10 40 10L10 10" fill="#FF9933" stroke="#2D3748" strokeWidth="1.5"/>
-        {/* Right Sleeve (Reddish) */}
-        <path d="M150 50L120 50C115 50 112 48 112 43L112 17C112 12 115 10 120 10L150 10" fill="#E53E3E" stroke="#2D3748" strokeWidth="1.5"/>
-        {/* Hands Interaction */}
-        <path d="M48 30C60 15 90 15 112 30" stroke="#2D3748" strokeWidth="3" strokeLinecap="round"/>
-        <path d="M48 35C60 50 90 50 112 35" stroke="#2D3748" strokeWidth="3" strokeLinecap="round"/>
-        {/* Fingers Detail */}
-        <path d="M75 35C80 35 85 38 85 43" stroke="#2D3748" strokeWidth="2" strokeLinecap="round"/>
-        <path d="M85 35C90 35 95 38 95 43" stroke="#2D3748" strokeWidth="2" strokeLinecap="round"/>
+    <svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-md">
+      {/* Tricolor Arc with Ashoka Chakra */}
+      <g transform="translate(0, -20)">
+        <path d="M100 280C100 120 200 50 300 50C400 50 500 120 500 280" stroke="#E53E3E" strokeWidth="45" strokeLinecap="round" opacity="0.95" />
+        <path d="M125 280C125 150 210 90 300 90C390 90 475 150 475 280" stroke="white" strokeWidth="45" strokeLinecap="round" />
+        <path d="M150 280C150 180 220 130 300 130C380 130 450 180 450 280" stroke="#138808" strokeWidth="45" strokeLinecap="round" opacity="0.95" />
+        
+        {/* Ashoka Chakra */}
+        <g transform="translate(300, 90)">
+          <circle r="22" stroke="#000080" strokeWidth="2.5" fill="white" />
+          <circle r="4" fill="#000080" />
+          {[...Array(24)].map((_, i) => (
+            <line 
+              key={i} 
+              x1="0" y1="0" 
+              x2={22 * Math.cos(i * Math.PI / 12)} 
+              y2={22 * Math.sin(i * Math.PI / 12)} 
+              stroke="#000080" strokeWidth="1" 
+            />
+          ))}
+        </g>
       </g>
+
+      {/* Handshake Illustration */}
+      <g transform="translate(100, 180) scale(1.1)">
+        {/* Left Arm (Orange Sleeve) */}
+        <path d="M20 60C20 60 50 40 80 60L100 80L80 100C50 120 20 100 20 100Z" fill="#E53E3E" stroke="#2D3748" strokeWidth="2" />
+        <path d="M30 65L70 65M30 75L70 75M30 85L70 85" stroke="#2D3748" strokeWidth="1" opacity="0.3" />
+        
+        {/* Right Arm (Red Sleeve) */}
+        <path d="M280 60C280 60 250 40 220 60L200 80L220 100C250 120 280 100 280 100Z" fill="#E53E3E" stroke="#2D3748" strokeWidth="2" />
+        <path d="M270 65L230 65M270 75L230 75M270 85L230 85" stroke="#2D3748" strokeWidth="1" opacity="0.3" />
+
+        {/* Hands Shaking */}
+        <path d="M100 80C120 60 180 60 200 80C210 90 200 110 180 110C160 110 140 90 120 110C100 110 90 90 100 80Z" fill="#FEEBC8" stroke="#2D3748" strokeWidth="3" />
+        <path d="M140 85C145 80 155 80 160 85" stroke="#2D3748" strokeWidth="2" strokeLinecap="round" />
+        <path d="M135 95C140 90 160 90 165 95" stroke="#2D3748" strokeWidth="2" strokeLinecap="round" />
+      </g>
+
+      {/* Typography */}
+      <text x="250" y="380" textAnchor="middle" fill="#E53E3E" fontSize="64" fontWeight="900" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '2px' }}>VARTALAP</text>
       
-      {/* Ashoka Chakra */}
-      <circle cx="220" cy="65" r="18" stroke="#000080" strokeWidth="2" />
-      <circle cx="220" cy="65" r="3" fill="#000080" />
-      {Array.from({ length: 12 }).map((_, i) => (
-        <line key={i} x1="220" y1="65" x2={220 + 18 * Math.cos(i * Math.PI / 6)} y2={65 + 18 * Math.sin(i * Math.PI / 6)} stroke="#000080" strokeWidth="1" />
-      ))}
+      <g transform="translate(250, 450)">
+        <text x="0" y="0" textAnchor="middle" fill="#138808" fontSize="72" fontWeight="900" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '4px' }}>BHARAT</text>
+        
+        {/* Decorative Stars */}
+        <path d="M-180 -20 L-170 -40 L-160 -20 L-180 -28 L-160 -28 Z" fill="#E53E3E" />
+        <path d="M160 -20 L170 -40 L180 -20 L160 -28 L180 -28 Z" fill="#E53E3E" />
+        
+        {/* Underline Arc */}
+        <path d="M-150 20 Q0 50 150 20" stroke="#138808" strokeWidth="4" strokeLinecap="round" fill="none" />
+      </g>
     </svg>
   </div>
 ));
@@ -243,6 +266,14 @@ export const MicIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
     <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
     <line x1="12" y1="19" x2="12" y2="23"></line>
     <line x1="8" y1="23" x2="16" y2="23"></line>
+  </svg>
+));
+
+export const ShoppingBagIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path>
+    <line x1="3" y1="6" x2="21" y2="6"></line>
+    <path d="M16 10a4 4 0 0 1-8 0"></path>
   </svg>
 ));
 

@@ -32,11 +32,11 @@
         "location": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": "string" },
-        "status": { "type": "string", "enum": ["Available", "Busy"] },
+        "status": { "type": "string", "enum": ["active", "pending"] },
         "timestamp": { "type": "string" },
         "uid": { "type": "string" }
       },
-      "required": ["ownerName", "vehicleNumber", "vehicleType", "vehiclePhoto", "uid"]
+      "required": ["ownerName", "vehicleNumber", "vehicleType", "vehiclePhoto", "uid", "status"]
     },
     "LocalService": {
       "title": "Local Service",
@@ -54,7 +54,7 @@
         "timestamp": { "type": "string" },
         "uid": { "type": "string" }
       },
-      "required": ["businessName", "ownerName", "category", "uid"]
+      "required": ["businessName", "ownerName", "category", "uid", "status"]
     },
     "BuilderListing": {
       "title": "Builder Listing",
@@ -76,7 +76,7 @@
         "timestamp": { "type": "string" },
         "uid": { "type": "string" }
       },
-      "required": ["builderName", "buildingName", "reraNumber", "uid"]
+      "required": ["builderName", "buildingName", "reraNumber", "uid", "status"]
     },
     "OwnerListing": {
       "title": "Owner Listing",
@@ -92,10 +92,11 @@
         "video": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "pending"] },
         "timestamp": { "type": "string" },
         "uid": { "type": "string" }
       },
-      "required": ["ownerName", "buildingName", "uid"]
+      "required": ["ownerName", "buildingName", "uid", "status"]
     },
     "Lead": {
       "title": "Lead",
@@ -152,6 +153,7 @@
     "owners": { "schema": "OwnerListing", "description": "Owner property listings" },
     "leads": { "schema": "Lead", "description": "Business leads" },
     "chats": { "schema": "Chat", "description": "Chat sessions" },
-    "chats/{chatId}/messages": { "schema": "Message", "description": "Messages within a chat" }
+    "chats/{chatId}/messages": { "schema": "Message", "description": "Messages within a chat" },
+    "pending_approvals": { "schema": "object", "description": "Listings awaiting admin approval" }
   }
 }
