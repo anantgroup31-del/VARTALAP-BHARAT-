@@ -4,14 +4,14 @@ import { Chat, User, Call, StatusUpdate, GlobalStats, Channel, PropertyPost } fr
 export const APP_NAME = "VARTALAP BHARAT";
 
 export const COLORS = {
-  primary: '#f97316',
-  secondary: '#138808',
-  accent: '#f97316', 
-  chatBg: '#fef2e7',
-  myBubble: '#ffedd5',
+  primary: '#dc2626', // Red
+  secondary: '#16a34a', // Green
+  accent: '#2563eb', // Blue
+  chatBg: '#f8fafc',
+  myBubble: '#e2e8f0',
   otherBubble: '#ffffff',
   sidebarBg: '#ffffff',
-  darkNav: '#121b22',
+  darkNav: '#0f172a',
 };
 
 export const LIST_OF_BANKS = [
@@ -40,52 +40,6 @@ export const LOCAL_SERVICE_CATEGORIES = [
   "Fabrication", "Aluminum Work", "RO System Dealer", "Solar Panel Dealer", "CCTV Installer", "Key Maker", 
   "Shoe Repair", "Bag Repair", "Watch Repair", "Cycle Repair", "Pet Groomer", "Veterinary Doctor", 
   "Dog Walker", "Aquarium Service", "Nursery (Plants)", "Tent House", "Sound System"
-];
-
-export const INITIAL_CHATS: Chat[] = [
-  {
-    id: 'ai-assistant',
-    name: 'VARTALAP BHARAT AI',
-    avatar: 'https://picsum.photos/seed/ai-bharat/200',
-    lastMessage: 'Jai Shree Ram! Main aapki kya sahayata kar sakta hoon?',
-    lastMessageTime: '10:01 AM',
-    unreadCount: 0,
-    isOnline: true,
-    type: 'ai',
-    hasReadReceipt: true
-  },
-  {
-    id: '1',
-    name: 'SATYAM DUBEY',
-    avatar: 'https://picsum.photos/seed/rahul/200',
-    lastMessage: 'Bharat Seva Post Approved',
-    lastMessageTime: '10:01 AM',
-    unreadCount: 0,
-    isOnline: true,
-    type: 'contact',
-    hasReadReceipt: true
-  },
-  {
-    id: '2',
-    name: 'BECHO INDIA PRO',
-    avatar: 'https://picsum.photos/seed/becho/200',
-    lastMessage: 'Listing active hai sir.',
-    lastMessageTime: '9:24 AM',
-    unreadCount: 0,
-    isOnline: false,
-    type: 'contact',
-    hasReadReceipt: true
-  },
-  {
-    id: '3',
-    name: 'VARTALAP STUDY GROUP',
-    avatar: 'https://picsum.photos/seed/study/200',
-    lastMessage: 'Chandan: Jai Bharat!',
-    lastMessageTime: '5:56 AM',
-    unreadCount: 2,
-    isOnline: false,
-    type: 'contact'
-  }
 ];
 
 export const GLOBAL_STATS: GlobalStats = {

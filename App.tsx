@@ -1,23 +1,22 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import Markdown from 'react-markdown';
 import { 
-  VehicleListing, LocalService, BuilderListing, OwnerListing, Message, Chat, CallSession, GroceryProduct 
+  VehicleListing, LocalService, BuilderListing, OwnerListing, GroceryProduct 
 } from './types.ts';
 import { 
-  LIST_OF_BANKS, LOCAL_SERVICE_CATEGORIES, CURRENT_USER, INITIAL_CHATS 
+  LIST_OF_BANKS, LOCAL_SERVICE_CATEGORIES, CURRENT_USER 
 } from './constants.tsx';
 import { 
   SearchIcon, BackIcon, ToolsIcon, LoanIcon, 
   HomeIcon, PersonIcon, VideoIcon, PhoneIcon,
-  VartalapBharatLogo, SparkleIcon, CameraIcon, VehicleIcon, StarIcon, ChatIcon, PlusIcon, SendIcon, MapPinIcon,
-  MenuIcon, HeartIcon, ChevronRightIcon, MicIcon, StickerIcon, ShoppingBagIcon
+  VartalapBharatLogo, SparkleIcon, CameraIcon, VehicleIcon, StarIcon, PlusIcon, MapPinIcon,
+  MenuIcon, HeartIcon, ChevronRightIcon, MicIcon, ShoppingBagIcon, FileIcon, HeadphonesIcon, UserIcon,
+  RefreshIcon, MaximizeIcon, LiveLocationIcon, CurrentLocationIcon, ChatIcon
 } from './components/Icons.tsx';
-import { geminiService } from './services/gemini.ts';
 
 import { 
-  auth, db, storage, loginWithGoogle, logout, 
+  auth, db, storage, loginWithGoogle, logout, loginWithEmail, signupWithEmail,
   collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp,
   onAuthStateChanged, handleFirestoreError, OperationType,
   ref, uploadBytes, getDownloadURL
@@ -54,7 +53,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
           <p className="text-slate-500 text-sm mb-6 max-w-md">{displayMessage}</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest"
+            className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all hover:bg-indigo-700"
           >
             Reload App
           </button>
@@ -65,9 +64,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
-type Tab = 'hub' | 'chat' | 'vehicle' | 'loan' | 'local' | 'property' | 'grocery';
+type Tab = 'hub' | 'vehicle' | 'loan' | 'local' | 'property' | 'grocery';
 type View = 'user_app' | 'admin_login' | 'admin_console';
-type BookingStage = 'hub' | 'search' | 'location_picker' | 'ride_selection' | 'verification' | 'confirming' | 'tracking';
+type BookingStage = 'hub' | 'search' | 'location_picker' | 'ride_selection' | 'verification' | 'confirming' | 'tracking' | 'ride_confirmation';
 
 interface Lead {
   id: string;
@@ -77,6 +76,8 @@ interface Lead {
   details: string;
   timestamp: string;
 }
+
+import { Post } from './types.ts';
 
 const INITIAL_VEHICLES_MOCK: VehicleListing[] = [
   { id: 'v1', ownerName: 'Om Prakash', ownerPhoto: '', vehicleNumber: 'MH-02-AB-1234', vehicleType: 'Car', vehiclePhoto: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400', location: 'Borivali, Mumbai', title: 'Luxury Car for Local Trip', description: 'Clean and well maintained car.', status: 'active', availability: 'Available', timestamp: 'Active Now', licenseNumber: 'DL12345' },
@@ -95,6 +96,10 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isSignupMode, setIsSignupMode] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [view, setView] = useState<View>('user_app');
   const [activeTab, setActiveTab] = useState<Tab>('hub');
   const [serviceSearch, setServiceSearch] = useState('');
@@ -133,16 +138,6 @@ const App: React.FC = () => {
 
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
 
-  const [chats, setChats] = useState<Chat[]>(INITIAL_CHATS);
-  const [activeChat, setActiveChat] = useState<Chat | null>(null);
-  const [messages, setMessages] = useState<Record<string, Message[]>>({});
-  const [isAiTyping, setIsAiTyping] = useState(false);
-  const [inputText, setInputText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [showStickers, setShowStickers] = useState(false);
-  const [chatTheme, setChatTheme] = useState<'default' | 'dark' | 'nature' | 'sunset'>('default');
-  const [callSession, setCallSession] = useState<CallSession | null>(null);
-
   const [showForm, setShowForm] = useState(false);
   const [showLoanApply, setShowLoanApply] = useState(false);
   const [showLoanDocs, setShowLoanDocs] = useState(false);
@@ -159,9 +154,12 @@ const App: React.FC = () => {
   const [selectedVehicleType, setSelectedVehicleType] = useState<string>('');
   const [bookingFrom, setBookingFrom] = useState('');
   const [bookingTo, setBookingTo] = useState('');
-  const [bookingDate, setBookingDate] = useState('18 Feb, Wed, 2026');
+  const [bookingDate, setBookingDate] = useState('2026-03-21');
+  const [bookingTime, setBookingTime] = useState('10:00');
   const [locationPickerTarget, setLocationPickerTarget] = useState<'from' | 'to'>('from');
   const [selectedRide, setSelectedRide] = useState<any>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleListing | null>(null);
+  const [showVehicleDetails, setShowVehicleDetails] = useState(false);
   const [driverAssigned, setDriverAssigned] = useState<any>(null);
   const [userMobile, setUserMobile] = useState('');
   const [userOtp, setUserOtp] = useState('');
@@ -181,8 +179,6 @@ const App: React.FC = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const ownerPhotoInputRef = useRef<HTMLInputElement>(null);
   const licenseInputRef = useRef<HTMLInputElement>(null);
-  const chatImageInputRef = useRef<HTMLInputElement>(null);
-  const chatVideoInputRef = useRef<HTMLInputElement>(null);
   const statusPhotoInputRef = useRef<HTMLInputElement>(null);
   const statusVideoInputRef = useRef<HTMLInputElement>(null);
 
@@ -338,28 +334,12 @@ const App: React.FC = () => {
   }, [isAuthReady]);
 
   useEffect(() => {
-    if (!activeChat || !isAuthReady) return;
-
-    const unsubMessages = onSnapshot(collection(db, `chats/${activeChat.id}/messages`), (snap) => {
-      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Message))
-        .sort((a, b) => {
-          // Simple sort by ID if timestamp is just a string, or better use serverTimestamp
-          return a.id.localeCompare(b.id);
-        });
-      setMessages(prev => ({ ...prev, [activeChat.id]: msgs }));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, `chats/${activeChat.id}/messages`));
-
-    return () => unsubMessages();
-  }, [activeChat, isAuthReady]);
-
-  useEffect(() => {
     setShowForm(false);
     setShowLoanApply(false);
     setShowLoanDocs(false);
     setShowCibilCheck(false);
     setShowLoanStatus(false);
     setPropertyTypeSelection('builders');
-    setActiveChat(null);
     setIsVerifying(false);
     setUserOtp('');
     setUserMobile('');
@@ -402,135 +382,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!inputText.trim() || !activeChat || !currentUser) return;
-
-    const text = inputText;
-    setInputText('');
-
-    const userMsg = {
-      text: text,
-      sender: 'me',
-      senderUid: currentUser.id,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sent'
-    };
-
-    try {
-      await addDoc(collection(db, `chats/${activeChat.id}/messages`), userMsg);
-      await updateDoc(doc(db, 'chats', activeChat.id), {
-        lastMessage: text,
-        lastMessageTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `chats/${activeChat.id}/messages`);
-    }
-
-    if (activeChat.type === 'ai') {
-      setIsAiTyping(true);
-      try {
-        const currentMsgs = messages[activeChat.id] || [];
-        const history = currentMsgs.map(m => ({
-          role: m.sender === 'me' ? 'user' : 'ai',
-          parts: [{ text: m.text || '' }]
-        }));
-
-        const response = await geminiService.generateChatResponse(history, text);
-        
-        const aiMsg = {
-          text: response.text,
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'delivered'
-        };
-
-        await addDoc(collection(db, `chats/${activeChat.id}/messages`), aiMsg);
-      } catch (error) {
-        console.error("AI Error:", error);
-      } finally {
-        setIsAiTyping(false);
-      }
-    }
-  };
-
-  const handleTranslate = async (msgId: string, text: string) => {
-    if (!activeChat) return;
-    const chatId = activeChat.id;
-    const currentMsgs = messages[chatId] || [];
-    
-    // Optimistic update or just wait
-    const translated = await geminiService.translateMessage(text);
-    
-    const updated = currentMsgs.map(m => 
-      m.id === msgId ? { ...m, translatedText: translated } : m
-    );
-    
-    const newMessages = { ...messages, [chatId]: updated };
-    setMessages(newMessages);
-    save('v_messages', newMessages);
-  };
-
-  const handleGenerateImage = async () => {
-    if (!inputText.trim() || !activeChat) return;
-    
-    const prompt = inputText;
-    setInputText('');
-    setIsAiTyping(true);
-    
-    const userMsg: Message = {
-      id: `msg-${Date.now()}`,
-      text: `Generate image: ${prompt}`,
-      sender: 'me',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sent'
-    };
-    
-    const chatId = activeChat.id;
-    const currentMsgs = messages[chatId] || [];
-    const updatedMsgs = [...currentMsgs, userMsg];
-    setMessages({ ...messages, [chatId]: updatedMsgs });
-
-    try {
-      const imageUrl = await geminiService.generateAiImage(prompt);
-      if (imageUrl) {
-        const aiMsg: Message = {
-          id: `ai-img-${Date.now()}`,
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'delivered',
-          media: { type: 'image', url: imageUrl }
-        };
-        const finalMsgs = [...updatedMsgs, aiMsg];
-        const finalMessages = { ...messages, [chatId]: finalMsgs };
-        setMessages(finalMessages);
-        save('v_messages', finalMessages);
-      }
-    } catch (error) {
-      console.error("Image Gen Error:", error);
-    } finally {
-      setIsAiTyping(false);
-    }
-  };
-
-  const handleStartCall = (type: 'voice' | 'video') => {
-    if (!activeChat) return;
-    setCallSession({
-      chat: activeChat,
-      type,
-      status: 'ringing',
-      startTime: Date.now()
-    });
-
-    // Simulate connection after 2 seconds
-    setTimeout(() => {
-      setCallSession(prev => prev ? { ...prev, status: 'connected' } : null);
-    }, 2000);
-  };
-
-  const handleEndCall = () => {
-    setCallSession(null);
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'logo' | 'owner' | 'license') => {
     const file = e.target.files?.[0];
     if (file) {
@@ -563,103 +414,6 @@ const App: React.FC = () => {
       });
     } else {
       alert("Geolocation is not supported by your browser.");
-    }
-  };
-
-  const handleShareLocation = () => {
-    if (!activeChat || !currentUser) return;
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        
-        const userMsg = {
-          sender: 'me',
-          senderUid: currentUser.id,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'sent',
-          media: {
-            type: 'location',
-            url: `https://www.google.com/maps?q=${lat},${lng}`,
-            label: `My Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-          }
-        };
-        
-        try {
-          await addDoc(collection(db, `chats/${activeChat.id}/messages`), userMsg);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, `chats/${activeChat.id}/messages`);
-        }
-      });
-    }
-  };
-
-  const handleSendVoice = async () => {
-    if (!activeChat || !currentUser) return;
-    setIsRecording(true);
-    // Simulate recording for 2 seconds
-    setTimeout(async () => {
-      setIsRecording(false);
-      const userMsg = {
-        sender: 'me',
-        senderUid: currentUser.id,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: 'sent',
-        media: {
-          type: 'voice',
-          url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-          duration: '0:02'
-        }
-      };
-      try {
-        await addDoc(collection(db, `chats/${activeChat.id}/messages`), userMsg);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `chats/${activeChat.id}/messages`);
-      }
-    }, 2000);
-  };
-
-  const handleSendSticker = async (stickerUrl: string) => {
-    if (!activeChat || !currentUser) return;
-    setShowStickers(false);
-    const userMsg = {
-      sender: 'me',
-      senderUid: currentUser.id,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sent',
-      media: {
-        type: 'sticker',
-        url: stickerUrl
-      }
-    };
-    try {
-      await addDoc(collection(db, `chats/${activeChat.id}/messages`), userMsg);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `chats/${activeChat.id}/messages`);
-    }
-  };
-
-  const handleChatFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
-    const file = e.target.files?.[0];
-    if (file && activeChat) {
-      const url = URL.createObjectURL(file);
-      const userMsg: Message = {
-        id: `msg-media-${Date.now()}`,
-        sender: 'me',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: 'sent',
-        media: {
-          type: type,
-          url: url
-        }
-      };
-      
-      const chatId = activeChat.id;
-      const currentMsgs = messages[chatId] || [];
-      const updatedMsgs = [...currentMsgs, userMsg];
-      const newMessages = { ...messages, [chatId]: updatedMsgs };
-      setMessages(newMessages);
-      save('v_messages', newMessages);
     }
   };
 
@@ -738,6 +492,8 @@ const App: React.FC = () => {
       userMobile: userMobile,
       from: bookingFrom,
       to: bookingTo,
+      bookingDate: bookingDate,
+      bookingTime: bookingTime,
       vehicleType: selectedRide.name,
       price: selectedRide.price,
       status: 'confirmed',
@@ -751,7 +507,7 @@ const App: React.FC = () => {
 
     try {
       await addDoc(collection(db, 'ride_bookings'), bookingData);
-      captureLead('Ride Booking', `${selectedRide.name} from ${bookingFrom} to ${bookingTo} (Mobile: ${userMobile})`);
+      captureLead('Ride Booking', `${selectedRide.name} from ${bookingFrom} to ${bookingTo} on ${bookingDate} at ${bookingTime} (Mobile: ${userMobile})`);
       setBookingStage('confirming');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'ride_bookings');
@@ -763,13 +519,8 @@ const App: React.FC = () => {
   );
 
   const renderBranding = (size: 'small' | 'large') => (
-    <div className={`flex ${size === 'large' ? 'flex-col items-center' : 'items-center gap-2'}`}>
-      <VartalapBharatLogo className={size === 'large' ? 'w-40 h-40 mb-2' : 'w-10 h-10'} />
-      {size === 'large' && (
-        <div className="text-center">
-          <p className="mt-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest leading-none">Digital India ka Digital Messenger</p>
-        </div>
-      )}
+    <div className={`flex ${size === 'large' ? 'flex-col items-center' : 'items-center'}`}>
+      <VartalapBharatLogo className={size === 'large' ? 'scale-[2] mb-12' : 'scale-75 -ml-4'} />
     </div>
   );
 
@@ -782,7 +533,7 @@ const App: React.FC = () => {
       <form onSubmit={(e) => { e.preventDefault(); if(adminAuth.id==='admin@vartalap.in' && adminAuth.password==='Bharat@2025') setView('admin_console'); else alert('Sahi ID/Password dale!'); }} className="w-full max-sm space-y-4">
         <input required type="email" placeholder="Admin ID" className="w-full p-5 bg-slate-800 border border-slate-700 text-white rounded-3xl font-bold" onChange={e=>setAdminAuth({...adminAuth, id:e.target.value})} />
         <input required type="password" placeholder="Password" className="w-full p-5 bg-slate-800 border border-slate-700 text-white rounded-3xl font-bold" onChange={e=>setAdminAuth({...adminAuth, password:e.target.value})} />
-        <button type="submit" className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-6 rounded-full font-black text-lg shadow-xl uppercase active:scale-95 transition-all">Login Console</button>
+        <button type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white py-6 rounded-full font-black text-lg shadow-xl uppercase active:scale-95 transition-all hover:shadow-indigo-200/50">Login Console</button>
         <button onClick={() => setView('user_app')} className="w-full text-slate-500 text-xs font-bold uppercase py-4">Back to App</button>
       </form>
     </div>
@@ -870,8 +621,8 @@ const App: React.FC = () => {
                 )}
 
                 <div className="flex gap-3 mt-4">
-                  <button onClick={() => handleAdminAction(p, true)} className="flex-1 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-[#138808] py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-[#138808] hover:text-white transition-all active:scale-95">Approve Live</button>
-                  <button onClick={() => handleAdminAction(p, false)} className="flex-1 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-500 py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-red-500 hover:text-white transition-all active:scale-95">Reject</button>
+                  <button onClick={() => handleAdminAction(p, true)} className="flex-1 bg-[#008751] text-white py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-[#007043] transition-all active:scale-95">Approve Live</button>
+                  <button onClick={() => handleAdminAction(p, false)} className="flex-1 bg-rose-600 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-rose-700 transition-all active:scale-95">Reject</button>
                 </div>
               </div>
             ))}
@@ -924,41 +675,107 @@ const App: React.FC = () => {
     </div>
   );
 
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      if (isSignupMode) {
+        await signupWithEmail(authEmail, authPassword);
+      } else {
+        await loginWithEmail(authEmail, authPassword);
+      }
+    } catch (err: any) {
+      console.error("Auth error:", err);
+      setAuthError(err.message || "Authentication failed. Please try again.");
+    }
+  };
+
   if (!isLoggedIn) {
     return (
-      <div className="h-screen w-full bg-slate-900 flex flex-col items-center justify-center p-8 relative overflow-hidden">
+      <div className="h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-8 relative overflow-y-auto no-scrollbar">
         {/* Background Decorations */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-green-600/10 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/20 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#008751]/20 rounded-full -ml-32 -mb-32 blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-red-600/5 rounded-full -translate-x-1/2 -translate-y-1/2 blur-[100px]"></div>
         
-        <div className="relative z-10 w-full max-w-md text-center">
-          <div className="mb-12 animate-bounce">
+        <div className="relative z-10 w-full max-w-md text-center py-10">
+          <div className="mb-8 animate-bounce">
             {renderBranding('large')}
           </div>
           
-          <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[3rem] border border-white/10 shadow-2xl">
-            <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Jai Bharat!</h2>
-            <p className="text-white/60 font-bold text-sm mb-10 leading-relaxed uppercase tracking-widest text-[10px]">
-              Swagat hai aapka Bharat ke sabse bade Super App mein. 
-              Aage badhne ke liye login karein.
+          <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[3rem] border border-white/10 shadow-2xl">
+            <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">Jai Bharat!</h2>
+            <p className="text-white/60 font-bold text-[10px] mb-8 leading-relaxed uppercase tracking-widest">
+              {isSignupMode ? 'Naya account banayein' : 'Sab milega yaha! Login karein.'}
             </p>
+
+            <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
+              <div className="space-y-1 text-left">
+                <label className="text-[8px] font-black text-white/40 uppercase tracking-widest ml-4">Email Address</label>
+                <input 
+                  type="email" 
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  className="w-full bg-white/10 border border-white/10 rounded-2xl p-4 text-white text-sm focus:outline-none focus:border-red-500 transition-all"
+                  placeholder="name@example.com"
+                  required
+                />
+              </div>
+              <div className="space-y-1 text-left">
+                <label className="text-[8px] font-black text-white/40 uppercase tracking-widest ml-4">Password</label>
+                <input 
+                  type="password" 
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full bg-white/10 border border-white/10 rounded-2xl p-4 text-white text-sm focus:outline-none focus:border-red-500 transition-all"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              
+              {authError && (
+                <p className="text-red-500 text-[9px] font-black uppercase tracking-widest bg-red-500/10 p-2 rounded-lg">
+                  {authError}
+                </p>
+              )}
+
+              <button 
+                type="submit"
+                className="w-full bg-white text-slate-950 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all"
+              >
+                {isSignupMode ? 'Create Account' : 'Login Now'}
+              </button>
+            </form>
+
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-[1px] flex-1 bg-white/10"></div>
+              <span className="text-[8px] font-black text-white/20 uppercase">OR</span>
+              <div className="h-[1px] flex-1 bg-white/10"></div>
+            </div>
             
             <button 
               onClick={loginWithGoogle}
-              className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-6 rounded-full font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4"
+              className="w-full bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-red-200 active:scale-95 transition-all flex items-center justify-center gap-4"
             >
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/0/google.svg" className="w-5 h-5" alt="Google" />
               Login with Google
             </button>
+
+            <button 
+              onClick={() => setIsSignupMode(!isSignupMode)}
+              className="mt-6 text-white/40 hover:text-white text-[9px] font-black uppercase tracking-widest transition-colors"
+            >
+              {isSignupMode ? 'Already have an account? Login' : 'Don\'t have an account? Sign up'}
+            </button>
             
-            <div className="mt-10 pt-10 border-t border-white/5">
+            <div className="mt-8 pt-8 border-t border-white/5">
               <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.3em]">
                 Secure & Verified Platform
               </p>
             </div>
           </div>
           
-          <p className="mt-12 text-white/30 text-[9px] font-black uppercase tracking-widest">
+          <p className="mt-8 text-white/30 text-[9px] font-black uppercase tracking-widest">
             Made with ❤️ for Bharat
           </p>
         </div>
@@ -967,10 +784,13 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50">
+    <div className="h-[100dvh] w-full flex flex-col overflow-hidden bg-slate-50 relative">
       <div className="safe-top bg-white border-b border-slate-100 z-30 shrink-0 shadow-sm">
-        <div className="px-6 py-1 flex items-center justify-between h-[45px]">
+        <div className="px-6 py-2 flex items-center justify-between h-[60px]">
           {renderBranding('small')}
+          <button className="p-2 text-slate-900">
+            <MenuIcon className="w-8 h-8" />
+          </button>
         </div>
       </div>
 
@@ -1067,14 +887,6 @@ const App: React.FC = () => {
                     <input name="unit" required placeholder="Unit (e.g. per kg)" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
                   </div>
                   <input name="category" required placeholder="Category (Vegetables, Fruits, Dairy...)" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
-                  <input name="sellerName" required placeholder="Shop/Seller Name" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm" />
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Google Location (GPS)</label>
-                    <div className="relative">
-                      <input name="location" id="grocery-gps-input" required placeholder="Connect GPS" className="w-full p-4 bg-white border border-slate-100 rounded-3xl font-bold shadow-sm pr-12" />
-                      <button type="button" onClick={() => handleConnectGps('grocery-gps-input')} className="absolute right-4 top-4 text-red-600 animate-pulse"><SparkleIcon className="w-5 h-5"/></button>
-                    </div>
-                  </div>
                 </>
               )}
 
@@ -1121,337 +933,8 @@ const App: React.FC = () => {
                 </>
               )}
 
-              <button type="submit" className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-5 rounded-full font-black uppercase shadow-xl active:scale-95 transition-all">Submit for Approval</button>
+              <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-full font-black uppercase shadow-xl active:scale-95 transition-all hover:bg-slate-800">Submit for Approval</button>
             </form>
-          </div>
-        ) : activeTab === 'chat' ? (
-          <div className="h-full flex flex-col animate-smart">
-            {activeChat ? (
-              <div className="fixed inset-0 z-50 bg-white flex flex-col">
-                {/* Call Overlay */}
-                <AnimatePresence>
-                  {callSession && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 1.1 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="fixed inset-0 z-[60] bg-slate-900 flex flex-col items-center justify-between p-12 text-white"
-                    >
-                      <div className="flex flex-col items-center mt-20">
-                        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/20 mb-6 shadow-2xl">
-                          <img src={callSession.chat.avatar} className="w-full h-full object-cover" alt="" />
-                        </div>
-                        <h2 className="text-3xl font-black uppercase tracking-tight">{callSession.chat.name}</h2>
-                        <p className="text-red-600 font-bold uppercase tracking-[0.2em] mt-2 animate-pulse">
-                          {callSession.status === 'ringing' ? 'Ringing...' : 'Connected'}
-                        </p>
-                      </div>
-
-                      {callSession.type === 'video' && callSession.status === 'connected' && (
-                        <div className="absolute inset-0 z-[-1] opacity-40">
-                          <img src={callSession.chat.avatar} className="w-full h-full object-cover blur-3xl" alt="" />
-                        </div>
-                      )}
-
-                      <div className="flex gap-8 mb-20">
-                        <button className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md">
-                          <VideoIcon className="w-6 h-6" />
-                        </button>
-                        <button 
-                          onClick={handleEndCall}
-                          className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center shadow-2xl shadow-red-500/40 rotate-[135deg]"
-                        >
-                          <PhoneIcon className="w-8 h-8" />
-                        </button>
-                        <button className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md">
-                          <PlusIcon className="w-6 h-6" />
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div className="safe-top bg-white border-b border-slate-100 flex items-center gap-3 px-4 py-3 shrink-0">
-                  <button onClick={() => setActiveChat(null)} className="p-2"><BackIcon className="w-6 h-6 text-slate-400"/></button>
-                  <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-100">
-                    <img src={activeChat.avatar} className="w-full h-full object-cover" alt="" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-black text-sm uppercase tracking-tight">{activeChat.name}</h3>
-                    <p className="text-[8px] font-bold text-green-500 uppercase tracking-widest">{activeChat.isOnline ? 'Online' : 'Offline'}</p>
-                  </div>
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={() => {
-                        const themes: ('default' | 'dark' | 'nature' | 'sunset')[] = ['default', 'dark', 'nature', 'sunset'];
-                        const next = themes[(themes.indexOf(chatTheme) + 1) % themes.length];
-                        setChatTheme(next);
-                      }}
-                      className="w-8 h-8 rounded-full border-2 border-slate-100 flex items-center justify-center overflow-hidden"
-                    >
-                      <div className={`w-full h-full ${
-                        chatTheme === 'default' ? 'bg-slate-50' : 
-                        chatTheme === 'dark' ? 'bg-slate-900' : 
-                        chatTheme === 'nature' ? 'bg-green-600' : 'bg-red-600'
-                      }`}></div>
-                    </button>
-                    <button onClick={() => handleStartCall('voice')} className="text-slate-400 hover:text-red-600 transition-colors"><PhoneIcon className="w-5 h-5"/></button>
-                    <button onClick={() => handleStartCall('video')} className="text-slate-400 hover:text-red-600 transition-colors"><VideoIcon className="w-5 h-5"/></button>
-                  </div>
-                </div>
-                
-                <div className={`flex-1 overflow-y-auto p-4 space-y-4 transition-all duration-500 ${
-                  chatTheme === 'default' ? 'chat-bg-pattern' : 
-                  chatTheme === 'dark' ? 'bg-slate-950' : 
-                  chatTheme === 'nature' ? 'bg-green-50' : 'bg-red-50'
-                }`}>
-                  {(messages[activeChat.id] || []).map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] p-4 rounded-3xl shadow-sm relative group ${
-                        msg.sender === 'me' 
-                          ? 'bg-[#ffedd5] text-slate-900 rounded-tr-none' 
-                          : 'bg-white text-slate-900 rounded-tl-none'
-                      }`}>
-                        {msg.media?.type === 'image' && (
-                          <img src={msg.media.url} className="w-full rounded-2xl mb-2 shadow-sm" alt="Media" />
-                        )}
-                        {msg.media?.type === 'video' && (
-                          <video src={msg.media.url} controls className="w-full rounded-2xl mb-2 shadow-sm" />
-                        )}
-                        {msg.media?.type === 'voice' && (
-                          <div className="flex items-center gap-3 p-2 bg-white/50 rounded-2xl border border-slate-200 mb-2">
-                            <button className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center">
-                              <div className="w-0 h-0 border-t-[5px] border-t-transparent border-l-[8px] border-l-white border-b-[5px] border-b-transparent ml-1"></div>
-                            </button>
-                            <div className="flex-1 h-1 bg-slate-200 rounded-full relative">
-                              <div className="absolute inset-y-0 left-0 w-1/3 bg-red-600 rounded-full"></div>
-                            </div>
-                            <span className="text-[8px] font-bold text-slate-400">{msg.media.duration || '0:00'}</span>
-                          </div>
-                        )}
-                        {msg.media?.type === 'sticker' && (
-                          <img src={msg.media.url} className="w-32 h-32 object-contain mb-2" alt="Sticker" />
-                        )}
-                        {msg.media?.type === 'location' && (
-                          <a 
-                            href={msg.media.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 p-3 bg-white/50 rounded-2xl border border-slate-200 mb-2 hover:bg-white transition-colors"
-                          >
-                            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
-                              <MapPinIcon className="w-5 h-5" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-[10px] font-black uppercase tracking-tight text-slate-900">{msg.media.label || 'Shared Location'}</p>
-                              <p className="text-[8px] font-bold text-red-600 uppercase tracking-widest">Open in Google Maps</p>
-                            </div>
-                          </a>
-                        )}
-                        {msg.text && (
-                          <div className="prose prose-sm max-w-none">
-                            <Markdown>{msg.text}</Markdown>
-                          </div>
-                        )}
-                        {msg.translatedText && (
-                          <div className="mt-2 pt-2 border-t border-slate-200/50 italic text-slate-600 text-xs">
-                            <p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Translation</p>
-                            {msg.translatedText}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mt-2">
-                          <button 
-                            onClick={() => handleTranslate(msg.id, msg.text || '')}
-                            className="text-[8px] font-black uppercase text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            Translate
-                          </button>
-                          <p className="text-[8px] font-bold opacity-40 uppercase">{msg.timestamp}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {isAiTyping && (
-                    <div className="flex justify-start">
-                      <div className="bg-white p-4 rounded-3xl rounded-tl-none shadow-sm flex gap-1">
-                        <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce"></span>
-                        <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                        <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-white border-t border-slate-100 flex flex-col gap-3 safe-bottom relative">
-                  {/* Sticker Panel */}
-                  <AnimatePresence>
-                    {showStickers && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="absolute bottom-full left-0 right-0 bg-white border-t border-slate-100 p-4 grid grid-cols-4 gap-4 shadow-2xl rounded-t-[2.5rem] z-50 h-64 overflow-y-auto"
-                      >
-                        {[
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274543.png',
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274556.png',
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274548.png',
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274551.png',
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274545.png',
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274541.png',
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274553.png',
-                          'https://cdn-icons-png.flaticon.com/512/2274/2274549.png'
-                        ].map((s, i) => (
-                          <button key={i} onClick={() => handleSendSticker(s)} className="p-2 hover:bg-slate-50 rounded-2xl transition-colors">
-                            <img src={s} className="w-full h-full object-contain" alt="Sticker" />
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setShowStickers(!showStickers)}
-                        className={`p-3 rounded-2xl transition-colors ${showStickers ? 'bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-600 shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                        title="Stickers"
-                      >
-                        <StickerIcon className="w-5 h-5"/>
-                      </button>
-                      <button 
-                        onClick={handleGenerateImage}
-                        className="p-3 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-600 rounded-2xl hover:bg-slate-50 transition-colors shadow-md"
-                        title="AI Image"
-                      >
-                        <SparkleIcon className="w-5 h-5"/>
-                      </button>
-                      <button 
-                        onClick={() => chatImageInputRef.current?.click()}
-                        className="p-3 bg-red-50 rounded-2xl text-red-600 hover:bg-red-100 transition-colors"
-                        title="Photo"
-                      >
-                        <CameraIcon className="w-5 h-5"/>
-                        <input type="file" ref={chatImageInputRef} className="hidden" onChange={(e) => handleChatFileChange(e, 'image')} accept="image/*" />
-                      </button>
-                    </div>
-
-                    <div className="flex-1 relative">
-                      <input 
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                        placeholder={isRecording ? "Recording..." : "Type message..."} 
-                        className={`w-full p-4 rounded-3xl font-bold text-sm outline-none transition-all ${isRecording ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-900'}`}
-                        disabled={isRecording}
-                      />
-                      {isRecording && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1">
-                          <span className="w-1 h-1 bg-red-500 rounded-full animate-ping"></span>
-                          <span className="w-1 h-1 bg-red-500 rounded-full animate-ping [animation-delay:0.2s]"></span>
-                        </div>
-                      )}
-                    </div>
-
-                    {inputText.trim() ? (
-                      <button 
-                        onClick={handleSendMessage}
-                        className="p-4 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-red-600 rounded-2xl shadow-lg shadow-red-100 active:scale-90 transition-transform"
-                      >
-                        <SendIcon className="w-5 h-5"/>
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={handleSendVoice}
-                        className={`p-4 rounded-2xl shadow-lg active:scale-90 transition-all ${isRecording ? 'bg-red-500 text-white shadow-red-100' : 'bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 shadow-slate-100'}`}
-                      >
-                        <MicIcon className={`w-5 h-5 ${isRecording ? 'animate-pulse' : ''}`}/>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white min-h-full">
-                <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50">
-                  <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Vartalap</h2>
-                  <button className="w-12 h-12 bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 rounded-2xl flex items-center justify-center shadow-md active:scale-90 transition-all"><SearchIcon className="w-5 h-5"/></button>
-                </div>
-
-                {/* Status Bar */}
-                <div className="px-6 py-4 flex gap-4 overflow-x-auto no-scrollbar border-b border-slate-50">
-                    <div className="flex flex-col items-center gap-2 shrink-0">
-                      <div 
-                        onClick={() => {
-                          const choice = confirm("Upload Photo (OK) or Video (Cancel)?");
-                          if (choice) statusPhotoInputRef.current?.click();
-                          else statusVideoInputRef.current?.click();
-                        }}
-                        className={`w-14 h-14 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center relative cursor-pointer hover:bg-slate-50 transition-colors ${isUploadingStatus ? 'animate-pulse' : ''}`}
-                      >
-                        <img src={currentUser?.avatar || 'https://i.pravatar.cc/150?u=me'} className="w-12 h-12 rounded-full object-cover" alt="" />
-                        <div className="absolute bottom-0 right-0 w-5 h-5 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-white">
-                          <PlusIcon className="w-3 h-3" />
-                        </div>
-                        <input type="file" ref={statusPhotoInputRef} className="hidden" onChange={(e) => handleStatusUpload(e, 'image')} accept="image/*" />
-                        <input type="file" ref={statusVideoInputRef} className="hidden" onChange={(e) => handleStatusUpload(e, 'video')} accept="video/*" />
-                      </div>
-                      <span className="text-[9px] font-black uppercase text-slate-400">My Status</span>
-                    </div>
-                  
-                  {/* Real Statuses */}
-                  {appStatuses.map(status => (
-                    <div key={status.id} className="flex flex-col items-center gap-2 shrink-0">
-                      <div className="w-14 h-14 rounded-full p-0.5 border-t-2 border-t-red-600 border-b-2 border-b-green-600 cursor-pointer active:scale-95 transition-transform">
-                        <img src={status.userAvatar} className="w-full h-full rounded-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
-                      </div>
-                      <span className="text-[9px] font-black uppercase text-slate-900 truncate w-14 text-center">{status.userName.split(' ')[0]}</span>
-                    </div>
-                  ))}
-
-                  {/* Placeholder chats statuses if no real statuses */}
-                  {appStatuses.length === 0 && chats.map(chat => (
-                    <div key={`status-${chat.id}`} className="flex flex-col items-center gap-2 shrink-0">
-                      <div className="w-14 h-14 rounded-full p-0.5 border-t-2 border-t-red-600 border-b-2 border-b-green-600">
-                        <img src={chat.avatar} className="w-full h-full rounded-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
-                      </div>
-                      <span className="text-[9px] font-black uppercase text-slate-900 truncate w-14 text-center">{chat.name.split(' ')[0]}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="divide-y divide-slate-50">
-                  {chats.map(chat => (
-                    <button 
-                      key={chat.id} 
-                      onClick={() => setActiveChat(chat)}
-                      className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors active:bg-slate-100"
-                    >
-                      <div className="relative shrink-0">
-                        <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100">
-                          <img src={chat.avatar} className="w-full h-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
-                        </div>
-                        {chat.isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>}
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="flex justify-between items-center mb-0.5">
-                          <h4 className="font-bold text-sm text-slate-900 truncate">{chat.name}</h4>
-                          <span className="text-[10px] font-medium text-slate-400">{chat.lastMessageTime}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-slate-500 truncate pr-4">{chat.lastMessage}</p>
-                          {chat.unreadCount > 0 && (
-                            <div className="shrink-0 min-w-[18px] h-[18px] bg-red-600 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1">
-                              {chat.unreadCount}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         ) : activeTab === 'loan' ? (
           <div className="p-6">
@@ -1464,21 +947,21 @@ const App: React.FC = () => {
                   </div>
                   <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Bharat Loan Hub</h2>
                   <p className="text-[11px] font-black text-red-600 uppercase tracking-[0.2em] mt-4">SABSE TEZ LOAN APPROVAL</p>
-                  <button onClick={() => setShowLoanApply(true)} className="mt-12 w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-7 rounded-full font-black uppercase text-sm tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all">Apply Loan Now</button>
+                  <button onClick={() => setShowLoanApply(true)} className="mt-12 w-full bg-red-600 text-white py-7 rounded-full font-black uppercase text-sm tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all hover:bg-red-700">Apply Loan Now</button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <button onClick={() => setShowCibilCheck(true)} className="bg-white p-8 rounded-[3rem] border-t-4 border-t-red-600 border-b-4 border-b-green-600 shadow-sm flex flex-col items-center gap-4 active:scale-95 transition-all hover:shadow-md group">
-                    <div className="w-14 h-14 bg-red-50 text-red-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all shadow-inner"><StarIcon className="w-7 h-7"/></div>
+                  <button onClick={() => setShowCibilCheck(true)} className="bg-white p-8 rounded-[3rem] border-2 border-slate-100 shadow-sm flex flex-col items-center gap-4 active:scale-95 transition-all hover:shadow-md hover:border-amber-200 group">
+                    <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all shadow-inner"><StarIcon className="w-7 h-7"/></div>
                     <span className="text-[10px] font-black uppercase text-slate-900 tracking-widest text-center">CIBIL Score</span>
                   </button>
-                  <button onClick={() => setShowLoanDocs(true)} className="bg-white p-8 rounded-[3rem] border-t-4 border-t-red-600 border-b-4 border-b-green-600 shadow-sm flex flex-col items-center gap-4 active:scale-95 transition-all hover:shadow-md group">
-                    <div className="w-14 h-14 bg-red-50 text-red-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all shadow-inner"><ToolsIcon className="w-7 h-7"/></div>
+                  <button onClick={() => setShowLoanDocs(true)} className="bg-white p-8 rounded-[3rem] border-2 border-slate-100 shadow-sm flex flex-col items-center gap-4 active:scale-95 transition-all hover:shadow-md hover:border-blue-200 group">
+                    <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all shadow-inner"><ToolsIcon className="w-7 h-7"/></div>
                     <span className="text-[10px] font-black uppercase text-slate-900 tracking-widest text-center">Documents</span>
                   </button>
                 </div>
 
-                <button onClick={() => setShowLoanStatus(true)} className="w-full bg-white p-6 rounded-[2.5rem] border-t-2 border-t-red-600 border-b-2 border-b-green-600 flex items-center justify-between group shadow-sm hover:shadow-md transition-all">
+                <button onClick={() => setShowLoanStatus(true)} className="w-full bg-white p-6 rounded-[2.5rem] border-t-2 border-t-red-600 border-b-2 border-b-[#008751] flex items-center justify-between group shadow-sm hover:shadow-md transition-all">
                   <div className="flex items-center gap-5 text-left">
                     <div className="w-14 h-14 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-red-100">
                       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -1495,8 +978,8 @@ const App: React.FC = () => {
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] px-4">Partner Banks</h3>
                   <div className="grid grid-cols-2 gap-4">
                     {LIST_OF_BANKS.slice(0, 20).map(bank => (
-                      <button key={bank} className="bg-white p-5 rounded-[2.5rem] border-t-2 border-t-red-600 border-b-2 border-b-green-600 flex items-center gap-4 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all group">
-                        <div className="w-12 h-12 bg-slate-50 text-red-600 rounded-2xl flex items-center justify-center font-black text-sm group-hover:bg-red-600 group-hover:text-white transition-colors shadow-inner">{bank.charAt(0)}</div>
+                      <button key={bank} className="bg-white p-5 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm hover:shadow-md hover:scale-[1.02] hover:border-indigo-200 active:scale-95 transition-all group">
+                        <div className="w-12 h-12 bg-slate-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black text-sm group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-inner">{bank.charAt(0)}</div>
                         <span className="text-[10px] font-black text-slate-900 uppercase truncate tracking-tighter">{bank}</span>
                       </button>
                     ))}
@@ -1531,7 +1014,7 @@ const App: React.FC = () => {
                       <button type="button" onClick={() => handleConnectGps('loan-gps-input')} className="absolute right-4 top-3 w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center animate-pulse"><SparkleIcon className="w-5 h-5"/></button>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-7 rounded-full font-black uppercase text-sm tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all">Apply Now</button>
+                  <button type="submit" className="w-full bg-indigo-600 text-white py-7 rounded-full font-black uppercase text-sm tracking-[0.2em] shadow-2xl shadow-indigo-100 active:translate-y-1 transition-all hover:bg-indigo-700">Apply Now</button>
                 </form>
               </div>
             ) : showLoanDocs ? (
@@ -1556,7 +1039,7 @@ const App: React.FC = () => {
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{doc.desc}</p>
                         </div>
                       </div>
-                      <div className="w-10 h-10 bg-green-50 text-green-500 rounded-full flex items-center justify-center shadow-inner">
+                      <div className="w-10 h-10 bg-red-50 text-red-500 rounded-full flex items-center justify-center shadow-inner">
                         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
                       </div>
                     </div>
@@ -1570,7 +1053,7 @@ const App: React.FC = () => {
                   <h2 className="text-2xl font-black uppercase tracking-tight">CIBIL Check</h2>
                 </div>
                 <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-2xl text-center relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-600 to-green-600"></div>
+                  <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-600 to-[#008751]"></div>
                   <div className="relative w-64 h-64 mx-auto mb-10">
                     <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                       <defs>
@@ -1584,12 +1067,12 @@ const App: React.FC = () => {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className="text-6xl font-black text-slate-900 tracking-tighter">785</span>
-                      <div className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-green-600 text-white text-[10px] font-black uppercase rounded-full mt-3 shadow-lg shadow-red-200">Excellent</div>
+                      <div className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-[#008751] text-white text-[10px] font-black uppercase rounded-full mt-3 shadow-lg shadow-red-200">Excellent</div>
                     </div>
                   </div>
                   <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Shandaar Score!</h3>
                   <p className="text-sm font-bold text-slate-500 mt-4 leading-relaxed px-4">Aapka credit profile bahut mazboot hai. Top banks se best interest rates par loan ke liye aap eligible hain.</p>
-                  <button onClick={() => { setShowCibilCheck(false); setShowLoanApply(true); }} className="mt-10 w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-6 rounded-full font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all">Apply for Loan Now</button>
+                  <button onClick={() => { setShowCibilCheck(false); setShowLoanApply(true); }} className="mt-10 w-full bg-red-600 text-white py-6 rounded-full font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all hover:bg-red-700">Apply for Loan Now</button>
                 </div>
               </div>
             ) : showLoanStatus ? (
@@ -1620,7 +1103,7 @@ const App: React.FC = () => {
                     ].map((step, idx) => (
                       <div key={step.title} className="flex gap-6 relative z-10">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                          step.status === 'completed' ? 'bg-green-500 text-white' : 
+                          step.status === 'completed' ? 'bg-red-500 text-white' : 
                           step.status === 'active' ? 'bg-red-600 text-white animate-pulse' : 
                           'bg-slate-100 text-slate-400'
                         }`}>
@@ -1657,6 +1140,86 @@ const App: React.FC = () => {
               <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]"></div>
             </div>
 
+            {/* Vehicle Details Modal */}
+            <AnimatePresence>
+              {showVehicleDetails && selectedVehicle && (
+                <motion.div 
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end"
+                >
+                  <motion.div 
+                    initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                    className="bg-white w-full rounded-t-[3rem] p-8 max-h-[85vh] overflow-y-auto no-scrollbar"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-black uppercase tracking-tighter">Vehicle Details</h2>
+                      <button onClick={() => setShowVehicleDetails(false)} className="p-2 bg-slate-100 rounded-full"><PlusIcon className="w-6 h-6 rotate-45 text-slate-400"/></button>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <div className="relative h-64 rounded-[2.5rem] overflow-hidden shadow-xl">
+                        <img src={selectedVehicle.vehiclePhoto} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+                        <div className="absolute top-4 right-4">
+                          <span className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg ${
+                            selectedVehicle.availability === 'Available' ? 'bg-[#008751] text-white' : 'bg-rose-600 text-white'
+                          }`}>
+                            {selectedVehicle.availability}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className="text-[10px] font-black text-red-600 uppercase bg-red-50 px-2 py-1 rounded-md">{selectedVehicle.vehicleType}</span>
+                            <h3 className="text-2xl font-black text-slate-900 mt-2 uppercase tracking-tight">{selectedVehicle.title}</h3>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Number</p>
+                            <p className="text-lg font-black text-slate-900">{selectedVehicle.vehicleNumber}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-600 leading-relaxed">{selectedVehicle.description}</p>
+                      </div>
+
+                      <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-sm border border-white">
+                            <img src={selectedVehicle.ownerPhoto || 'https://i.pravatar.cc/150?u=' + selectedVehicle.ownerName} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Owner / Driver</p>
+                            <h4 className="font-black text-slate-900 uppercase">{selectedVehicle.ownerName}</h4>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">📍 {selectedVehicle.location}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button onClick={() => captureLead('Vehicle', selectedVehicle.ownerName)} className="bg-red-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-red-100">
+                            <PhoneIcon className="w-4 h-4" /> Call Owner
+                          </button>
+                          <button 
+                            disabled={selectedVehicle.availability === 'Busy'}
+                            onClick={() => {
+                              setSelectedRide({ id: selectedVehicle.vehicleType.toLowerCase(), name: selectedVehicle.vehicleType, icon: selectedVehicle.vehicleType === 'Car' ? '🚗' : selectedVehicle.vehicleType === 'Auto' ? '🛺' : selectedVehicle.vehicleType === 'Bus' ? '🚌' : '🚚' });
+                              setBookingStage('search');
+                              setShowVehicleDetails(false);
+                            }}
+                            className={`py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all ${
+                              selectedVehicle.availability === 'Available' 
+                                ? 'bg-slate-900 text-white shadow-slate-100' 
+                                : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
+                            }`}
+                          >
+                            Book Now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Ride History Modal */}
             <AnimatePresence>
               {showRideHistory && (
@@ -1681,6 +1244,7 @@ const App: React.FC = () => {
                               <span className="text-[8px] font-black text-red-600 uppercase bg-red-50 px-2 py-1 rounded-md">{ride.vehicleType}</span>
                               <h4 className="font-black text-slate-900 mt-2">{ride.to}</h4>
                               <p className="text-[10px] font-bold text-slate-400 uppercase">From: {ride.from}</p>
+                              <p className="text-[9px] font-black text-indigo-600 uppercase mt-1">Date: {ride.bookingDate} • Time: {ride.bookingTime}</p>
                             </div>
                             <div className="text-right">
                               <p className="font-black text-slate-900">{ride.price}</p>
@@ -1721,13 +1285,13 @@ const App: React.FC = () => {
                   <div className="flex flex-col gap-2">
                     <button 
                       onClick={() => setShowForm(true)}
-                      className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-slate-100"
+                      className="bg-slate-900 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-slate-100 hover:bg-slate-800"
                     >
                       + Post Vehicle
                     </button>
                     <button 
                       onClick={() => setShowRideHistory(true)}
-                      className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-slate-100"
+                      className="bg-slate-900 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-slate-100 hover:bg-slate-800"
                     >
                       My Rides
                     </button>
@@ -1760,7 +1324,7 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     {[
                       { id: 'car', label: 'CAR', icon: '🚗', color: 'bg-red-50', iconColor: 'text-red-600', desc: 'Comfortable' },
-                      { id: 'auto', label: 'AUTO', icon: '🛺', color: 'bg-green-50', iconColor: 'text-green-600', desc: 'Quick' },
+                      { id: 'auto', label: 'AUTO', icon: '🛺', color: 'bg-red-50', iconColor: 'text-red-600', desc: 'Quick' },
                       { id: 'bus', label: 'BUS', icon: '🚌', color: 'bg-slate-50', iconColor: 'text-slate-600', desc: 'Group' },
                       { id: 'tempo', label: 'TEMPO', icon: '🚚', color: 'bg-red-50', iconColor: 'text-red-600', desc: 'Luggage' }
                     ].map((item, i) => (
@@ -1785,8 +1349,8 @@ const App: React.FC = () => {
                     <div className="flex justify-between items-center mb-4">
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Map View</h4>
                       <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-[8px] font-black text-green-600 uppercase">Active</span>
+                        <div className="w-1.5 h-1.5 bg-[#008751] rounded-full animate-pulse"></div>
+                        <span className="text-[8px] font-black text-[#008751] uppercase">Active</span>
                       </div>
                     </div>
                     <div className="h-48 bg-white rounded-2xl border border-slate-100 relative overflow-hidden shadow-inner">
@@ -1797,6 +1361,43 @@ const App: React.FC = () => {
                       </div>
                       <motion.div animate={{ x: [0, 150, 0], y: [0, 20, 0] }} transition={{ duration: 12, repeat: Infinity }} className="absolute top-1/4 left-1/4 text-2xl">🚗</motion.div>
                       <motion.div animate={{ x: [0, -120, 0], y: [0, -30, 0] }} transition={{ duration: 15, repeat: Infinity }} className="absolute bottom-1/4 right-1/4 text-2xl">🛺</motion.div>
+                    </div>
+                  </div>
+
+                  {/* Recent Vehicle Listings */}
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2">Recent Vehicle Listings</h4>
+                    <div className="space-y-4">
+                      {filteredVehicles.length > 0 ? filteredVehicles.map(v => (
+                        <button 
+                          key={v.id} 
+                          onClick={() => { setSelectedVehicle(v); setShowVehicleDetails(true); }}
+                          className="w-full p-5 bg-white border border-slate-100 rounded-[2.5rem] shadow-sm flex items-center gap-4 text-left active:scale-[0.98] transition-all hover:shadow-md"
+                        >
+                          <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-sm border border-slate-50 relative">
+                            <img src={v.vehiclePhoto} className="w-full h-full object-cover" alt="" loading="lazy" referrerPolicy="no-referrer" />
+                            <div className={`absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-white ${v.availability === 'Available' ? 'bg-[#008751]' : 'bg-rose-600'}`}></div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <span className="text-[8px] font-black text-red-600 uppercase bg-red-50 px-2 py-0.5 rounded-md">{v.vehicleType}</span>
+                              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${v.availability === 'Available' ? 'bg-[#008751]/10 text-[#008751]' : 'bg-rose-50 text-rose-600'}`}>
+                                {v.availability}
+                              </span>
+                            </div>
+                            <h4 className="font-black text-slate-900 truncate mt-1 uppercase text-xs tracking-tight">{v.title}</h4>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">👤 {v.ownerName} • 📍 {v.location}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <p className="text-[9px] font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">{v.vehicleNumber}</p>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{v.timestamp}</p>
+                            </div>
+                          </div>
+                        </button>
+                      )) : (
+                        <div className="text-center py-10 bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
+                          <p className="text-xs font-bold text-slate-400 uppercase">No vehicles listed yet</p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1828,13 +1429,13 @@ const App: React.FC = () => {
                       <p className="text-[10px] font-bold text-red-100 uppercase tracking-widest leading-relaxed">
                         Share your ride status with family and friends in real-time. Emergency SOS button available in every ride.
                       </p>
-                      <button className="mt-6 bg-white text-red-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">Learn More</button>
+                      <button className="mt-6 bg-white text-red-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-red-50 transition-colors">Learn More</button>
                     </div>
                   </div>
 
                   {/* Footer Info */}
                   <div className="text-center py-10 opacity-30">
-                    <VartalapBharatLogo className="w-12 h-12 mx-auto mb-4 grayscale" />
+                    <VartalapBharatLogo className="w-12 h-12 mx-auto mb-4" />
                     <p className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-900">© 2026 Vartalap Bharat • All Rights Reserved</p>
                   </div>
                 </div>
@@ -1851,7 +1452,7 @@ const App: React.FC = () => {
                 <div className="space-y-4 relative pb-6">
                   <div className="absolute left-[23px] top-10 bottom-10 w-0.5 bg-slate-100"></div>
                   <div className="flex items-center gap-4">
-                    <div className="w-4 h-4 rounded-full bg-green-500 shrink-0 z-10"></div>
+                    <div className="w-4 h-4 rounded-full bg-red-500 shrink-0 z-10"></div>
                     <div className="flex-1 flex gap-2">
                       <button 
                         onClick={() => { setLocationPickerTarget('from'); setBookingStage('location_picker'); }}
@@ -1879,11 +1480,33 @@ const App: React.FC = () => {
                       <p className={`text-base font-bold truncate ${bookingTo ? 'text-slate-900' : 'text-slate-300'}`}>{bookingTo || 'Where are you going?'}</p>
                     </button>
                   </div>
+
+                  {/* Date and Time Selection */}
+                  <div className="grid grid-cols-2 gap-4 pt-4">
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Date</p>
+                      <input 
+                        type="date" 
+                        value={bookingDate}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        className="bg-transparent w-full font-bold text-slate-900 outline-none text-sm"
+                      />
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Time</p>
+                      <input 
+                        type="time" 
+                        value={bookingTime}
+                        onChange={(e) => setBookingTime(e.target.value)}
+                        className="bg-transparent w-full font-bold text-slate-900 outline-none text-sm"
+                      />
+                    </div>
+                  </div>
                 </div>
                 {bookingFrom && bookingTo && (
                   <button 
                     onClick={() => setBookingStage('ride_selection')}
-                    className="mt-auto w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-5 rounded-full font-black uppercase tracking-widest shadow-xl shrink-0 active:scale-95 transition-all"
+                    className="mt-auto w-full bg-red-600 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-xl shrink-0 active:scale-95 transition-all hover:bg-red-700"
                   >
                     Find Rides
                   </button>
@@ -1935,7 +1558,7 @@ const App: React.FC = () => {
                   {selectedRide && (
                     <button 
                       onClick={() => setBookingStage('verification')}
-                      className="mt-8 w-full bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 py-5 rounded-full font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+                      className="mt-8 w-full bg-indigo-600 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all hover:bg-indigo-700"
                     >
                       Book {selectedRide.name}
                     </button>
@@ -1970,7 +1593,7 @@ const App: React.FC = () => {
                       <button 
                         disabled={userMobile.length !== 10}
                         onClick={() => setIsVerifying(true)}
-                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userMobile.length === 10 ? 'bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 shadow-red-100' : 'bg-slate-100 text-slate-300'}`}
+                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userMobile.length === 10 ? 'bg-indigo-600 text-white shadow-indigo-100' : 'bg-slate-100 text-slate-300'}`}
                       >
                         Send OTP
                       </button>
@@ -2003,7 +1626,7 @@ const App: React.FC = () => {
                       <button 
                         disabled={userOtp.length !== 4}
                         onClick={handleBookRide}
-                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userOtp.length === 4 ? 'bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-slate-900 shadow-red-100' : 'bg-slate-100 text-slate-300'}`}
+                        className={`w-full py-5 rounded-full font-black uppercase tracking-widest shadow-xl transition-all ${userOtp.length === 4 ? 'bg-indigo-600 text-white shadow-indigo-100' : 'bg-slate-100 text-slate-300'}`}
                       >
                         Verify & Book
                       </button>
@@ -2026,7 +1649,7 @@ const App: React.FC = () => {
                   <motion.div 
                     animate={{ scale: [1, 2.5], opacity: [0.3, 0] }}
                     transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-                    className="absolute inset-0 border-2 border-green-600 rounded-full"
+                    className="absolute inset-0 border-2 border-red-600 rounded-full"
                   ></motion.div>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center text-4xl shadow-2xl shadow-red-500/50">
@@ -2052,7 +1675,7 @@ const App: React.FC = () => {
               <div className="relative pb-20">
                 <div className="absolute top-6 left-6 z-20 flex flex-wrap gap-4">
                   <button onClick={() => setBookingStage('hub')} className="p-3 bg-white rounded-2xl shadow-xl border border-slate-100"><BackIcon className="w-6 h-6 text-slate-400"/></button>
-                  <div className="bg-green-500 text-white px-4 py-2 rounded-2xl shadow-xl font-black text-[10px] uppercase flex items-center gap-2">
+                  <div className="bg-red-500 text-white px-4 py-2 rounded-2xl shadow-xl font-black text-[10px] uppercase flex items-center gap-2">
                     <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
                     Arriving in 3 mins
                   </div>
@@ -2133,12 +1756,15 @@ const App: React.FC = () => {
                     </div>
                     <div className="text-3xl">🚗</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="grid grid-cols-1 gap-3 mb-4">
                     <button className="bg-slate-900 text-white py-4 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2">
                       <PhoneIcon className="w-4 h-4" /> Call
                     </button>
-                    <button className="bg-slate-100 text-slate-900 py-4 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2">
-                      <ChatIcon className="w-4 h-4" /> Message
+                    <button 
+                      onClick={() => setBookingStage('ride_confirmation')}
+                      className="bg-red-600 text-white py-4 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-red-100"
+                    >
+                      Confirm Booking Details
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -2150,12 +1776,110 @@ const App: React.FC = () => {
                     </button>
                     <button 
                       onClick={() => alert('Ride Status Shared with your family!')}
-                      className="bg-green-50 text-green-600 py-4 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 border border-green-100"
+                      className="bg-red-50 text-red-600 py-4 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 border border-red-100"
                     >
                       Share Ride
                     </button>
                   </div>
                 </motion.div>
+              </div>
+            )}
+
+            {/* Ride Confirmation Stage: Final Summary */}
+            {bookingStage === 'ride_confirmation' && (
+              <div className="bg-white z-50 p-8 animate-smart h-full overflow-y-auto no-scrollbar pb-32">
+                <div className="flex items-center gap-4 mb-8">
+                  <button onClick={() => setBookingStage('tracking')} className="p-2 bg-slate-100 rounded-xl"><BackIcon className="w-5 h-5 text-slate-400"/></button>
+                  <h2 className="text-2xl font-black uppercase tracking-tight">Confirm Booking</h2>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Ride Summary Card */}
+                  <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Ride Summary</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0"></div>
+                        <div>
+                          <p className="text-[8px] font-black text-slate-400 uppercase">Pickup</p>
+                          <p className="text-sm font-bold text-slate-900">{bookingFrom}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-4">
+                        <div className="w-2 h-2 rounded-full bg-red-600 mt-1.5 shrink-0"></div>
+                        <div>
+                          <p className="text-[8px] font-black text-slate-400 uppercase">Drop-off</p>
+                          <p className="text-sm font-bold text-slate-900">{bookingTo}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 pt-2">
+                        <div>
+                          <p className="text-[8px] font-black text-slate-400 uppercase">Date & Time</p>
+                          <p className="text-xs font-bold text-slate-900">{bookingDate} • {bookingTime}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[8px] font-black text-slate-400 uppercase">Estimated Price</p>
+                          <p className="text-lg font-black text-red-600">{selectedRide?.price}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Driver Details Card */}
+                  <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Driver Details</h3>
+                    <div className="flex items-center gap-4 mb-4">
+                      <img src={driverAssigned?.avatar} className="w-16 h-16 rounded-2xl object-cover shadow-md" alt="" />
+                      <div>
+                        <h4 className="font-black text-slate-900 uppercase text-sm">{driverAssigned?.name}</h4>
+                        <div className="flex items-center gap-1 text-amber-500">
+                          <StarIcon className="w-3 h-3 fill-current" />
+                          <span className="text-[10px] font-black">{driverAssigned?.rating}</span>
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{driverAssigned?.vehicle} • {driverAssigned?.number}</p>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                      <div>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Your OTP</p>
+                        <h3 className="text-xl font-black text-red-600 tracking-widest">{driverAssigned?.otp}</h3>
+                      </div>
+                      <div className="text-3xl">{selectedRide?.icon}</div>
+                    </div>
+                  </div>
+
+                  {/* Confirmation Button */}
+                  <div className="pt-4">
+                    <button 
+                      onClick={() => {
+                        // Finalize booking
+                        const newRide = {
+                          id: 'ride-' + Date.now(),
+                          from: bookingFrom,
+                          to: bookingTo,
+                          bookingDate,
+                          bookingTime,
+                          price: selectedRide?.price || '₹0',
+                          vehicleType: selectedRide?.name || 'Vehicle',
+                          driver: { name: driverAssigned?.name, number: driverAssigned?.number },
+                          timestamp: 'Just Now'
+                        };
+                        setRideHistory([newRide, ...rideHistory]);
+                        alert('Booking Confirmed! Your ride is on the way.');
+                        setBookingStage('hub');
+                      }}
+                      className="w-full bg-red-600 text-white py-6 rounded-full font-black uppercase text-sm tracking-[0.2em] shadow-2xl shadow-red-100 active:translate-y-1 transition-all hover:bg-red-700"
+                    >
+                      Confirm Booking
+                    </button>
+                    <button 
+                      onClick={() => setBookingStage('tracking')}
+                      className="w-full mt-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center"
+                    >
+                      Back to Tracking
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2204,7 +1928,7 @@ const App: React.FC = () => {
                       <div className="space-y-3">
                         {[
                           { name: 'Home', address: 'Borivali East, Mumbai', icon: '🏠', color: 'bg-red-50 text-red-600' },
-                          { name: 'Work', address: 'Andheri West, Mumbai', icon: '🏢', color: 'bg-green-50 text-green-600' },
+                          { name: 'Work', address: 'Andheri West, Mumbai', icon: '🏢', color: 'bg-red-50 text-red-600' },
                           { name: 'Gym', address: 'Dadar, Mumbai', icon: '🏋️', color: 'bg-slate-50 text-slate-600' }
                         ].map((place, i) => (
                           <button 
@@ -2245,7 +1969,7 @@ const App: React.FC = () => {
           <div className="p-6 animate-smart pb-20">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-black uppercase tracking-tighter">Property Hub</h2>
-              <button onClick={() => setShowForm(true)} className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all">+ List Property</button>
+              <button onClick={() => setShowForm(true)} className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all hover:bg-slate-800">+ List Property</button>
             </div>
             
             <div className="space-y-8">
@@ -2287,9 +2011,9 @@ const App: React.FC = () => {
             <div className="p-8 pb-4">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">GROCERY HUB</h1>
-                <button onClick={() => setShowForm(true)} className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">+ Post Product</button>
+                <button onClick={() => setShowForm(true)} className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all hover:bg-slate-800">+ Post Product</button>
               </div>
-              <p className="text-xs font-black text-red-600 uppercase tracking-[0.2em]">Fresh Items • Local Sellers</p>
+              <p className="text-xs font-black text-red-600 uppercase tracking-[0.2em]">Fresh Items</p>
             </div>
 
             <div className="px-6 mb-8">
@@ -2325,13 +2049,12 @@ const App: React.FC = () => {
                     </div>
                     <div className="p-4">
                       <h4 className="font-black text-slate-900 uppercase text-[11px] truncate">{p.productName}</h4>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase truncate mt-1">🏪 {p.sellerName}</p>
                       <div className="flex items-center justify-between mt-4">
                         <div>
                           <span className="text-sm font-black text-slate-900">{p.price}</span>
                           <span className="text-[8px] font-bold text-slate-400 ml-1 uppercase">{p.unit}</span>
                         </div>
-                        <button onClick={() => captureLead('Grocery', p.productName)} className="w-8 h-8 bg-white border-t border-t-red-600 border-b border-b-green-600 text-red-600 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
+                        <button onClick={() => captureLead('Grocery', p.productName)} className="w-8 h-8 bg-rose-600 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all hover:bg-rose-700">
                           <PhoneIcon className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -2351,7 +2074,7 @@ const App: React.FC = () => {
             <div className="p-8 pb-4">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">LOCAL HUB</h1>
-                <button onClick={() => setShowForm(true)} className="bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all">+ Post</button>
+                <button onClick={() => setShowForm(true)} className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all hover:bg-slate-800">+ Post</button>
               </div>
               <p className="text-xs font-black text-red-600 uppercase tracking-[0.2em]">100+ Services • Verified Experts</p>
             </div>
@@ -2382,103 +2105,102 @@ const App: React.FC = () => {
               <div className="grid grid-cols-3 gap-4 mb-10">
                 {[
                   { icon: '🪠', label: 'Plumber', color: 'bg-red-50' },
-                  { icon: '⚡', label: 'Electrician', color: 'bg-green-50' },
+                  { icon: '⚡', label: 'Electrician', color: 'bg-red-50' },
                   { icon: '⚖️', label: 'Advocate', color: 'bg-slate-50' },
                   { icon: '🏨', label: 'Hotel', color: 'bg-red-50' },
-                  { icon: '🛒', label: 'Grocery', color: 'bg-green-50' },
                   { icon: '🪚', label: 'Carpenter', color: 'bg-slate-50' },
                   { icon: '🎨', label: 'Painter', color: 'bg-red-50' },
-                  { icon: '🔧', label: 'Mechanic', color: 'bg-green-50' },
+                  { icon: '🔧', label: 'Mechanic', color: 'bg-red-50' },
                   { icon: '🧵', label: 'Tailor', color: 'bg-slate-50' },
                   { icon: '✂️', label: 'Barber', color: 'bg-red-50' },
-                  { icon: '👨‍⚕️', label: 'Doctor', color: 'bg-green-50' },
+                  { icon: '👨‍⚕️', label: 'Doctor', color: 'bg-red-50' },
                   { icon: '🦷', label: 'Dentist', color: 'bg-slate-50' },
                   { icon: '💊', label: 'Pharmacy', color: 'bg-red-50' },
-                  { icon: '🧺', label: 'Laundry', color: 'bg-green-50' },
+                  { icon: '🧺', label: 'Laundry', color: 'bg-red-50' },
                   { icon: '📦', label: 'Courier', color: 'bg-slate-50' },
                   { icon: '📸', label: 'Photographer', color: 'bg-red-50' },
-                  { icon: '🧘', label: 'Yoga', color: 'bg-green-50' },
+                  { icon: '🧘', label: 'Yoga', color: 'bg-red-50' },
                   { icon: '🏋️', label: 'Gym', color: 'bg-slate-50' },
                   { icon: '🎓', label: 'Tutor', color: 'bg-red-50' },
-                  { icon: '🏠', label: 'Real Estate', color: 'bg-green-50' },
+                  { icon: '🏠', label: 'Real Estate', color: 'bg-red-50' },
                   { icon: '🛋️', label: 'Interior', color: 'bg-slate-50' },
                   { icon: '📐', label: 'Architect', color: 'bg-red-50' },
-                  { icon: '📊', label: 'CA', color: 'bg-green-50' },
+                  { icon: '📊', label: 'CA', color: 'bg-red-50' },
                   { icon: '📄', label: 'Insurance', color: 'bg-slate-50' },
                   { icon: '✈️', label: 'Travel', color: 'bg-red-50' },
-                  { icon: '🎉', label: 'Events', color: 'bg-green-50' },
+                  { icon: '🎉', label: 'Events', color: 'bg-red-50' },
                   { icon: '🍽️', label: 'Caterer', color: 'bg-slate-50' },
                   { icon: '💐', label: 'Florist', color: 'bg-red-50' },
-                  { icon: '✂️', label: 'Pet Groom', color: 'bg-green-50' },
+                  { icon: '✂️', label: 'Pet Groom', color: 'bg-red-50' },
                   { icon: '🐕', label: 'Vet', color: 'bg-slate-50' },
                   { icon: '🐜', label: 'Pest Ctrl', color: 'bg-red-50' },
-                  { icon: '🧹', label: 'Cleaning', color: 'bg-green-50' },
+                  { icon: '🧹', label: 'Cleaning', color: 'bg-red-50' },
                   { icon: '👮', label: 'Security', color: 'bg-slate-900' },
                   { icon: '🚗', label: 'Driver', color: 'bg-slate-50' },
                   { icon: '👨‍🍳', label: 'Cook', color: 'bg-red-50' },
-                  { icon: '👶', label: 'Nanny', color: 'bg-green-50' },
+                  { icon: '👶', label: 'Nanny', color: 'bg-red-50' },
                   { icon: '🌳', label: 'Gardener', color: 'bg-slate-50' },
                   { icon: '💻', label: 'PC Repair', color: 'bg-red-50' },
-                  { icon: '📱', label: 'Mobile Rep', color: 'bg-green-50' },
+                  { icon: '📱', label: 'Mobile Rep', color: 'bg-red-50' },
                   { icon: '❄️', label: 'AC Repair', color: 'bg-slate-50' },
                   { icon: '🚰', label: 'RO Repair', color: 'bg-red-50' },
-                  { icon: '🧊', label: 'Fridge Rep', color: 'bg-green-50' },
+                  { icon: '🧊', label: 'Fridge Rep', color: 'bg-red-50' },
                   { icon: '🧺', label: 'WM Repair', color: 'bg-slate-50' },
                   { icon: '📺', label: 'TV Repair', color: 'bg-red-50' },
-                  { icon: '🔑', label: 'Key Maker', color: 'bg-green-50' },
+                  { icon: '🔑', label: 'Key Maker', color: 'bg-red-50' },
                   { icon: '🪟', label: 'Glass Work', color: 'bg-slate-50' },
                   { icon: '🏗️', label: 'Aluminum', color: 'bg-red-50' },
-                  { icon: '🔥', label: 'Welder', color: 'bg-green-50' },
+                  { icon: '🔥', label: 'Welder', color: 'bg-red-50' },
                   { icon: '🧱', label: 'Mason', color: 'bg-slate-50' },
                   { icon: '📐', label: 'Tile Layer', color: 'bg-red-50' },
-                  { icon: '🏗️', label: 'Plasterer', color: 'bg-green-50' },
+                  { icon: '🏗️', label: 'Plasterer', color: 'bg-red-50' },
                   { icon: '💧', label: 'Waterproof', color: 'bg-slate-50' },
                   { icon: '☀️', label: 'Solar', color: 'bg-red-50' },
                   { icon: '📹', label: 'CCTV', color: 'bg-slate-900' },
-                  { icon: '🏠', label: 'Smart Home', color: 'bg-green-50' },
+                  { icon: '🏠', label: 'Smart Home', color: 'bg-red-50' },
                   { icon: '🚚', label: 'Movers', color: 'bg-slate-50' },
                   { icon: '🧼', label: 'Car Wash', color: 'bg-red-50' },
-                  { icon: '🏍️', label: 'Bike Svc', color: 'bg-green-50' },
+                  { icon: '🏍️', label: 'Bike Svc', color: 'bg-red-50' },
                   { icon: '🛞', label: 'Tyre Shop', color: 'bg-slate-900' },
                   { icon: '🔋', label: 'Battery', color: 'bg-red-50' },
-                  { icon: '📝', label: 'Stationery', color: 'bg-green-50' },
+                  { icon: '📝', label: 'Stationery', color: 'bg-red-50' },
                   { icon: '🛠️', label: 'Hardware', color: 'bg-slate-50' },
                   { icon: '💡', label: 'Electrical', color: 'bg-red-50' },
-                  { icon: '🚽', label: 'Sanitary', color: 'bg-green-50' },
+                  { icon: '🚽', label: 'Sanitary', color: 'bg-red-50' },
                   { icon: '🖌️', label: 'Paint Shop', color: 'bg-slate-50' },
                   { icon: '🪑', label: 'Furniture', color: 'bg-red-50' },
-                  { icon: '🛏️', label: 'Mattress', color: 'bg-green-50' },
+                  { icon: '🛏️', label: 'Mattress', color: 'bg-red-50' },
                   { icon: '🪟', label: 'Curtain', color: 'bg-slate-50' },
                   { icon: '👕', label: 'Clothing', color: 'bg-red-50' },
                   { icon: '👟', label: 'Footwear', color: 'bg-slate-50' },
-                  { icon: '💎', label: 'Jewelry', color: 'bg-green-50' },
+                  { icon: '💎', label: 'Jewelry', color: 'bg-red-50' },
                   { icon: '眼镜', label: 'Optical', color: 'bg-slate-50' },
                   { icon: '⌚', label: 'Watch Rep', color: 'bg-slate-50' },
                   { icon: '📲', label: 'Mobile Shop', color: 'bg-red-50' },
                   { icon: '📺', label: 'Electronics', color: 'bg-slate-50' },
-                  { icon: '🍳', label: 'Appliances', color: 'bg-green-50' },
+                  { icon: '🍳', label: 'Appliances', color: 'bg-red-50' },
                   { icon: '🎁', label: 'Gift Shop', color: 'bg-red-50' },
-                  { icon: '🧸', label: 'Toy Store', color: 'bg-green-50' },
-                  { icon: '⚽', label: 'Sports', color: 'bg-green-50' },
+                  { icon: '🧸', label: 'Toy Store', color: 'bg-red-50' },
+                  { icon: '⚽', label: 'Sports', color: 'bg-red-50' },
                   { icon: '🎸', label: 'Musical', color: 'bg-slate-50' },
                   { icon: '📚', label: 'Books', color: 'bg-red-50' },
                   { icon: '🖨️', label: 'Printing', color: 'bg-slate-50' },
-                  { icon: '🌐', label: 'Cyber Cafe', color: 'bg-green-50' },
+                  { icon: '🌐', label: 'Cyber Cafe', color: 'bg-red-50' },
                   { icon: '📄', label: 'Xerox', color: 'bg-slate-50' },
                   { icon: '📮', label: 'Courier', color: 'bg-red-50' },
-                  { icon: '💄', label: 'Parlor', color: 'bg-green-50' },
+                  { icon: '💄', label: 'Parlor', color: 'bg-red-50' },
                   { icon: '🧖', label: 'Spa', color: 'bg-slate-50' },
                   { icon: '💉', label: 'Tattoo', color: 'bg-slate-900' },
                   { icon: '✋', label: 'Mehndi', color: 'bg-red-50' },
-                  { icon: '🎨', label: 'Makeup', color: 'bg-green-50' },
+                  { icon: '🎨', label: 'Makeup', color: 'bg-red-50' },
                   { icon: '🔮', label: 'Astrologer', color: 'bg-slate-50' },
                   { icon: '📿', label: 'Pandit', color: 'bg-red-50' },
                   { icon: '👨‍⚖️', label: 'Lawyer', color: 'bg-slate-50' },
                   { icon: '🖋️', label: 'Notary', color: 'bg-slate-50' },
                   { icon: '⌨️', label: 'Typing', color: 'bg-slate-50' },
-                  { icon: '🗣️', label: 'Translate', color: 'bg-green-50' },
+                  { icon: '🗣️', label: 'Translate', color: 'bg-red-50' },
                   { icon: '🛂', label: 'Visa', color: 'bg-slate-50' },
-                  { icon: '📖', label: 'Passport', color: 'bg-green-50' },
+                  { icon: '📖', label: 'Passport', color: 'bg-red-50' },
                   { icon: '🚦', label: 'RTO', color: 'bg-slate-50' },
                   { icon: '🆔', label: 'Aadhaar', color: 'bg-red-50' }
                 ].filter(c => c.label.toLowerCase().includes(serviceSearch.toLowerCase())).map((cat, i) => (
@@ -2487,7 +2209,7 @@ const App: React.FC = () => {
                       onClick={() => setServiceSearch(cat.label)}
                       className={`group relative bg-white p-4 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 border transition-all hover:shadow-md ${
                         serviceSearch === cat.label 
-                          ? 'border-t-4 border-t-red-600 border-b-4 border-b-green-600 shadow-xl scale-105' 
+                          ? 'border-t-4 border-t-red-600 border-b-4 border-b-red-600 shadow-xl scale-105' 
                           : 'border-slate-100 shadow-sm hover:border-red-100'
                       }`}
                     >
@@ -2515,7 +2237,7 @@ const App: React.FC = () => {
                       <h4 className="font-bold text-slate-900 truncate mt-1">{s.businessName}</h4>
                       <p className="text-[10px] text-slate-400 font-bold uppercase truncate">📍 {s.location}</p>
                     </div>
-                    <button onClick={()=>captureLead('Service', s.businessName)} className="w-10 h-10 bg-white border-t border-t-red-600 border-b border-b-green-600 text-red-600 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all"><PhoneIcon className="w-4 h-4"/></button>
+                    <button onClick={()=>captureLead('Service', s.businessName)} className="w-10 h-10 bg-red-600 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all hover:bg-red-700"><PhoneIcon className="w-4 h-4"/></button>
                   </div>
                 )) : (
                   <div className="text-center py-10 bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
@@ -2528,7 +2250,7 @@ const App: React.FC = () => {
         ) : activeTab === 'hub' ? (
           <div className="p-6 space-y-8 animate-smart pb-20 overflow-y-auto no-scrollbar h-full">
             {/* User Profile Card */}
-            <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
+            <div className="bg-blue-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-blue-100">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16"></div>
               <div className="flex items-center gap-6 relative z-10">
                 <div className="w-20 h-20 rounded-[2rem] overflow-hidden border-4 border-white/10 shadow-xl">
@@ -2553,7 +2275,7 @@ const App: React.FC = () => {
                 <div className="text-center">
                   <p className="text-[8px] font-black text-white/30 uppercase tracking-widest mb-1">Online Now</p>
                   <div className="flex items-center justify-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-[#008751] rounded-full animate-pulse"></div>
                     <p className="text-xl font-black">{allUsers.filter(u => u.isOnline).length}</p>
                   </div>
                 </div>
@@ -2561,27 +2283,16 @@ const App: React.FC = () => {
             </div>
 
             {/* Quick Actions Bento */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {currentUser?.role === 'admin' && (
                 <button 
                   onClick={() => setView('admin_console')}
-                  className="bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 p-6 rounded-[2.5rem] text-slate-900 shadow-xl shadow-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all group"
+                  className="bg-white border border-slate-100 p-6 rounded-[2.5rem] text-slate-900 shadow-xl shadow-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all group hover:border-blue-200"
                 >
-                  <div className="w-12 h-12 bg-slate-50 text-red-600 rounded-2xl flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-all shadow-inner"><ToolsIcon className="w-6 h-6"/></div>
+                  <div className="w-12 h-12 bg-slate-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all shadow-inner"><ToolsIcon className="w-6 h-6"/></div>
                   <span className="text-[10px] font-black uppercase tracking-widest">Admin Console</span>
                 </button>
               )}
-              <button 
-                onClick={() => {
-                  setActiveTab('chat');
-                  const aiChat = chats.find(c => c.id === 'ai');
-                  if (aiChat) setActiveChat(aiChat);
-                }}
-                className={`bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 p-6 rounded-[2.5rem] text-slate-900 shadow-xl shadow-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all ${currentUser?.role !== 'admin' ? 'col-span-2' : ''}`}
-              >
-                <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center shadow-inner"><ChatIcon className="w-6 h-6"/></div>
-                <span className="text-[10px] font-black uppercase tracking-widest">Vartalap AI</span>
-              </button>
             </div>
 
             {/* Hub Stats */}
@@ -2590,9 +2301,9 @@ const App: React.FC = () => {
               <div className="space-y-6">
                 {[
                   { label: 'Vehicles Available', count: vehicles.length, color: 'bg-red-600', tab: 'vehicle' },
-                  { label: 'Properties Listed', count: builders.length + owners.length, color: 'bg-slate-900', tab: 'property' },
-                  { label: 'Grocery Products', count: groceryProducts.length, color: 'bg-green-600', tab: 'grocery' },
-                  { label: 'Active Services', count: localServices.length, color: 'bg-red-500', tab: 'local' }
+                  { label: 'Properties Listed', count: builders.length + owners.length, color: 'bg-blue-600', tab: 'property' },
+                  { label: 'Grocery Products', count: groceryProducts.length, color: 'bg-red-600', tab: 'grocery' },
+                  { label: 'Active Services', count: localServices.length, color: 'bg-red-600', tab: 'local' }
                 ].map(stat => (
                   <button 
                     key={stat.label} 
@@ -2616,25 +2327,15 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Bharat AI Assistant Floating Button */}
-      {!activeChat && activeTab === 'chat' && (
-        <button 
-          onClick={() => setActiveChat(chats.find(c => c.id === 'ai') || null)}
-          className="fixed right-6 bottom-32 w-16 h-16 bg-white border-t-4 border-t-red-600 border-b-4 border-b-green-600 text-red-600 rounded-full shadow-2xl shadow-red-100 flex items-center justify-center z-40 animate-bounce active:scale-90 transition-all"
-        >
-          <SparkleIcon className="w-8 h-8" />
-        </button>
-      )}
-
-      <div className="bg-white/95 backdrop-blur-md flex justify-around items-end pb-safe border-t border-slate-100 z-50 h-[85px] shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] overflow-x-auto no-scrollbar">
+      {/* Bottom Navigation */}
+      <div className="bg-white/95 backdrop-blur-md flex justify-around items-end border-t border-slate-100 z-50 h-[85px] shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] overflow-x-auto no-scrollbar">
         {[
-          { id: 'hub', label: 'HUB', icon: <MenuIcon className="w-5 h-5" />, color: 'bg-slate-900' },
-          { id: 'chat', label: 'VARTALAP', icon: <ChatIcon className="w-5 h-5" />, color: 'bg-red-600' },
-          { id: 'vehicle', label: 'VEHICLE', icon: <VehicleIcon className="w-5 h-5" />, color: 'bg-green-600' },
-          { id: 'loan', label: 'LOAN', icon: <LoanIcon className="w-5 h-5" />, color: 'bg-red-600' },
-          { id: 'grocery', label: 'GROCERY', icon: <ShoppingBagIcon className="w-5 h-5" />, color: 'bg-green-600' },
-          { id: 'local', label: 'SERVICES', icon: <ToolsIcon className="w-5 h-5" />, color: 'bg-red-600' },
-          { id: 'property', label: 'PROPERTY', icon: <HomeIcon className="w-5 h-5" />, color: 'bg-green-600' }
+          { id: 'hub', label: 'HUB', icon: <MenuIcon className="w-5 h-5" />, color: 'bg-indigo-600' },
+          { id: 'vehicle', label: 'VEHICLE', icon: <VehicleIcon className="w-5 h-5" />, color: 'bg-red-600' },
+          { id: 'loan', label: 'LOAN', icon: <LoanIcon className="w-5 h-5" />, color: 'bg-amber-600' },
+          { id: 'grocery', label: 'GROCERY', icon: <ShoppingBagIcon className="w-5 h-5" />, color: 'bg-rose-600' },
+          { id: 'local', label: 'SERVICES', icon: <ToolsIcon className="w-5 h-5" />, color: 'bg-sky-600' },
+          { id: 'property', label: 'PROPERTY', icon: <HomeIcon className="w-5 h-5" />, color: 'bg-slate-800' },
         ].map(t => (
           <button 
             key={t.id} 
@@ -2643,7 +2344,7 @@ const App: React.FC = () => {
           >
             <div className={`${
               activeTab === t.id 
-                ? 'bg-white border-t-2 border-t-red-600 border-b-2 border-b-green-600 text-slate-900 shadow-xl' 
+                ? 'bg-white border-t-2 border-t-red-600 border-b-2 border-b-[#008751] border-x-2 border-x-blue-600 text-slate-900 shadow-xl' 
                 : t.color + ' text-white'
             } w-10 h-10 rounded-[1rem] flex items-center justify-center shadow-lg ${activeTab === t.id ? 'ring-4 ring-slate-100' : ''}`}>
               {t.icon}

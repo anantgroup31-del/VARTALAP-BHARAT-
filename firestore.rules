@@ -90,6 +90,17 @@ service cloud.firestore {
              data.userMobile is string && data.uid == request.auth.uid;
     }
 
+    function isValidGrocery(data) {
+      return data.productName is string && data.productName.size() < 100 &&
+             data.price is string && data.unit is string &&
+             data.category is string && data.uid == request.auth.uid;
+    }
+
+    function isValidPost(data) {
+      return data.content is string && data.content.size() < 2000 &&
+             data.authorName is string && data.uid == request.auth.uid;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -136,6 +147,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /grocery_products/{productId} {
+      allow read: if resource.data.get('status', 'pending') == 'active';
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     match /leads/{leadId} {
       allow read: if isAdmin() || isDocOwner();
       allow create: if isAuthenticated() && isValidLead(request.resource.data);
@@ -155,6 +173,13 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'pending';
       allow update: if isAdmin();
       allow delete: if isAdmin() || isDocOwner();
+    }
+
+    match /posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPost(request.resource.data);
+      allow update: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
     }
 
     match /chats/{chatId} {

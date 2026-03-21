@@ -143,6 +143,41 @@
         "status": { "type": "string", "enum": ["sent", "delivered", "read"] }
       },
       "required": ["id", "sender", "timestamp"]
+    },
+    "GroceryProduct": {
+      "title": "Grocery Product",
+      "description": "Fresh grocery item for sale",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productName": { "type": "string" },
+        "price": { "type": "string" },
+        "unit": { "type": "string" },
+        "category": { "type": "string" },
+        "photo": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "pending"] },
+        "timestamp": { "type": "string" },
+        "uid": { "type": "string" }
+      },
+      "required": ["productName", "price", "unit", "category", "uid", "status"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Community post with text and optional image",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "uid": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "likes": { "type": "number" },
+        "commentsCount": { "type": "number" }
+      },
+      "required": ["content", "authorName", "uid", "timestamp"]
     }
   },
   "firestore": {
@@ -154,6 +189,8 @@
     "leads": { "schema": "Lead", "description": "Business leads" },
     "chats": { "schema": "Chat", "description": "Chat sessions" },
     "chats/{chatId}/messages": { "schema": "Message", "description": "Messages within a chat" },
-    "pending_approvals": { "schema": "object", "description": "Listings awaiting admin approval" }
+    "grocery_products": { "schema": "GroceryProduct", "description": "Grocery items" },
+    "pending_approvals": { "schema": "object", "description": "Listings awaiting admin approval" },
+    "posts": { "schema": "Post", "description": "Community posts" }
   }
 }

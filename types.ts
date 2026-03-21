@@ -167,15 +167,25 @@ export interface GlobalStats {
 
 export interface GroceryProduct {
   id: string;
-  sellerName: string;
   productName: string;
   price: string;
   unit: string;
   category: string;
   photo: string;
-  location: string;
   description: string;
   status: 'active' | 'pending';
   timestamp: string;
   uid: string;
+}
+
+export interface Post {
+  id: string;
+  content: string;
+  image?: string;
+  authorName: string;
+  authorPhoto?: string;
+  uid: string;
+  timestamp: any;
+  likes: number;
+  commentsCount: number;
 }

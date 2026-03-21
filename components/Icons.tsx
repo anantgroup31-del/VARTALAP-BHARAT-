@@ -5,60 +5,31 @@ interface IconProps {
 }
 
 export const VartalapBharatLogo = memo(({ className = "w-20 h-20" }: IconProps) => (
-  <div className={`relative flex flex-col items-center justify-center ${className}`}>
-    <svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-md">
-      {/* Tricolor Arc with Ashoka Chakra */}
-      <g transform="translate(0, -20)">
-        <path d="M100 280C100 120 200 50 300 50C400 50 500 120 500 280" stroke="#E53E3E" strokeWidth="45" strokeLinecap="round" opacity="0.95" />
-        <path d="M125 280C125 150 210 90 300 90C390 90 475 150 475 280" stroke="white" strokeWidth="45" strokeLinecap="round" />
-        <path d="M150 280C150 180 220 130 300 130C380 130 450 180 450 280" stroke="#138808" strokeWidth="45" strokeLinecap="round" opacity="0.95" />
-        
-        {/* Ashoka Chakra */}
-        <g transform="translate(300, 90)">
-          <circle r="22" stroke="#000080" strokeWidth="2.5" fill="white" />
-          <circle r="4" fill="#000080" />
-          {[...Array(24)].map((_, i) => (
-            <line 
-              key={i} 
-              x1="0" y1="0" 
-              x2={22 * Math.cos(i * Math.PI / 12)} 
-              y2={22 * Math.sin(i * Math.PI / 12)} 
-              stroke="#000080" strokeWidth="1" 
-            />
-          ))}
-        </g>
-      </g>
+  <div className={`flex items-center gap-3 ${className}`}>
+    {/* Icon Part */}
+    <div className="relative shrink-0">
+      <div className="w-14 h-14 bg-[#008751] rounded-[1.4rem] flex items-center justify-center shadow-lg border-2 border-white/20">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+      </div>
+      {/* Red Notification Dot */}
+      <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#E11D48] rounded-full border-2 border-white shadow-sm"></div>
+    </div>
 
-      {/* Handshake Illustration */}
-      <g transform="translate(100, 180) scale(1.1)">
-        {/* Left Arm (Orange Sleeve) */}
-        <path d="M20 60C20 60 50 40 80 60L100 80L80 100C50 120 20 100 20 100Z" fill="#E53E3E" stroke="#2D3748" strokeWidth="2" />
-        <path d="M30 65L70 65M30 75L70 75M30 85L70 85" stroke="#2D3748" strokeWidth="1" opacity="0.3" />
-        
-        {/* Right Arm (Red Sleeve) */}
-        <path d="M280 60C280 60 250 40 220 60L200 80L220 100C250 120 280 100 280 100Z" fill="#E53E3E" stroke="#2D3748" strokeWidth="2" />
-        <path d="M270 65L230 65M270 75L230 75M270 85L230 85" stroke="#2D3748" strokeWidth="1" opacity="0.3" />
-
-        {/* Hands Shaking */}
-        <path d="M100 80C120 60 180 60 200 80C210 90 200 110 180 110C160 110 140 90 120 110C100 110 90 90 100 80Z" fill="#FEEBC8" stroke="#2D3748" strokeWidth="3" />
-        <path d="M140 85C145 80 155 80 160 85" stroke="#2D3748" strokeWidth="2" strokeLinecap="round" />
-        <path d="M135 95C140 90 160 90 165 95" stroke="#2D3748" strokeWidth="2" strokeLinecap="round" />
-      </g>
-
-      {/* Typography */}
-      <text x="250" y="380" textAnchor="middle" fill="#E53E3E" fontSize="64" fontWeight="900" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '2px' }}>VARTALAP</text>
-      
-      <g transform="translate(250, 450)">
-        <text x="0" y="0" textAnchor="middle" fill="#138808" fontSize="72" fontWeight="900" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '4px' }}>BHARAT</text>
-        
-        {/* Decorative Stars */}
-        <path d="M-180 -20 L-170 -40 L-160 -20 L-180 -28 L-160 -28 Z" fill="#E53E3E" />
-        <path d="M160 -20 L170 -40 L180 -20 L160 -28 L180 -28 Z" fill="#E53E3E" />
-        
-        {/* Underline Arc */}
-        <path d="M-150 20 Q0 50 150 20" stroke="#138808" strokeWidth="4" strokeLinecap="round" fill="none" />
-      </g>
-    </svg>
+    {/* Text Part */}
+    <div className="flex flex-col justify-center">
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-3xl font-black text-[#E11D48] tracking-tighter uppercase">Vartalap</span>
+        <span className="text-3xl font-black text-[#008751] tracking-tighter uppercase">Bharat</span>
+      </div>
+      <div className="flex items-center gap-2 -mt-1">
+        <div className="h-[1px] w-4 bg-slate-300"></div>
+        <span className="text-[11px] font-bold text-slate-500 italic tracking-wide font-serif">Sab Milega Yaha</span>
+        <div className="h-[1px] w-4 bg-slate-300"></div>
+      </div>
+    </div>
   </div>
 ));
 
@@ -166,6 +137,27 @@ export const LoanIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
 ));
 
 export const ContactIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+    <circle cx="12" cy="7" r="4"></circle>
+  </svg>
+));
+
+export const FileIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+    <polyline points="13 2 13 9 20 9"></polyline>
+  </svg>
+));
+
+export const HeadphonesIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+  </svg>
+));
+
+export const UserIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
     <circle cx="12" cy="7" r="4"></circle>
@@ -282,5 +274,40 @@ export const StickerIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
     <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
     <path d="M12 8a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm0 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"></path>
     <path d="M12 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"></path>
+  </svg>
+));
+
+export const RefreshIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M23 4v6h-6"></path>
+    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+  </svg>
+));
+
+export const MaximizeIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M15 3h6v6"></path>
+    <path d="M9 21H3v-6"></path>
+    <path d="M21 3l-7 7"></path>
+    <path d="M3 21l7-7"></path>
+  </svg>
+));
+
+export const LiveLocationIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="2" fill="currentColor"></circle>
+    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" opacity="0.3"></path>
+    <path d="M12 6a6 6 0 1 0 6 6 6 6 0 0 0-6-6zm0 10a4 4 0 1 1 4-4 4 4 0 0 1-4 4z" opacity="0.6"></path>
+  </svg>
+));
+
+export const CurrentLocationIcon = memo(({ className = "w-6 h-6" }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="22" y1="12" x2="18" y2="12"></line>
+    <line x1="6" y1="12" x2="2" y2="12"></line>
+    <line x1="12" y1="6" x2="12" y2="2"></line>
+    <line x1="12" y1="22" x2="12" y2="18"></line>
   </svg>
 ));
